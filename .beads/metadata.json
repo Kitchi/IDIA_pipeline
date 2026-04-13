@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "IDIA_pipeline",
+  "project_id": "cd2ca4ce-5253-4d5c-8a40-55d597512fde"
+}
