@@ -19,6 +19,17 @@ from time import gmtime
 logging.Formatter.converter = gmtime
 logger = logging.getLogger(__name__)
 
+Calfiles = namedtuple('calfiles', [
+    'kcorrfile', 'bpassfile', 'gainfile', 'dpolfile',
+    'xpolfile', 'xdelfile', 'fluxfile',
+])
+
+FieldIDs = namedtuple('FieldIDs', [
+    'targetfield', 'fluxfield', 'bpassfield', 'secondaryfield',
+    'kcorrfield', 'xdelfield', 'dpolfield', 'xpolfield',
+    'gainfields', 'extrafields',
+])
+
 
 # ---------------------------------------------------------------------------
 # Cal table paths
@@ -26,11 +37,7 @@ logger = logging.getLogger(__name__)
 
 def get_calfiles(visname, caldir):
     base = os.path.splitext(visname)[0]
-    calfiles = namedtuple('calfiles', [
-        'kcorrfile', 'bpassfile', 'gainfile', 'dpolfile',
-        'xpolfile', 'xdelfile', 'fluxfile',
-    ])
-    return calfiles(
+    return Calfiles(
         kcorrfile=os.path.join(caldir, base + '.kcal'),
         bpassfile=os.path.join(caldir, base + '.bcal'),
         gainfile=os.path.join(caldir, base + '.gcal'),
@@ -64,11 +71,6 @@ def get_field_ids(fields):
         else str(fluxfield)
     )
 
-    FieldIDs = namedtuple('FieldIDs', [
-        'targetfield', 'fluxfield', 'bpassfield', 'secondaryfield',
-        'kcorrfield', 'xdelfield', 'dpolfield', 'xpolfield',
-        'gainfields', 'extrafields',
-    ])
     return FieldIDs(
         targetfield=targetfield,
         fluxfield=fluxfield,
