@@ -4,6 +4,7 @@ import os
 import re
 import pytest
 import processMeerKAT as pmk
+from slurm_jobs import _expand_selfcal_loops
 
 
 # ---------------------------------------------------------------------------
@@ -268,3 +269,56 @@ class TestGetConfigKwargs:
             pmk.get_config_kwargs(minimal_config, 'crosscal', pmk.CROSSCAL_CONFIG_KEYS)
         # No unknown keys in our fixture, so no warning expected
         assert 'Unknown keys' not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# _expand_selfcal_loops
+# ---------------------------------------------------------------------------
+
+class TestExpandSelfcalLoops:
+
+    def test_no_selfcal_section_returns_unchanged(self, minimal_config):
+        scripts = ['validate_input.sbatch', 'flag_round_1.sbatch']
+        result = _expand_selfcal_loops(minimal_config, scripts)
+        assert result == scripts
+
+    def test_scripts_without_selfcal_pair_unchanged(self, tmp_path):
+        cfg = tmp_path / 'cfg.txt'
+        cfg.write_text('[selfcal]\nnloops = 2\nloop = 0\n')
+        scripts = ['validate_input.sbatch', 'flag_round_1.sbatch']
+        result = _expand_selfcal_loops(str(cfg), scripts)
+        assert result == scripts
+
+    def test_one_loop_adds_final_clean(self, tmp_path):
+        cfg = tmp_path / 'cfg.txt'
+        cfg.write_text('[selfcal]\nnloops = 1\nloop = 0\n')
+        scripts = ['selfcal_part1.sbatch', 'selfcal_part2.sbatch']
+        result = _expand_selfcal_loops(str(cfg), scripts)
+        assert result == ['selfcal_part1.sbatch', 'selfcal_part2.sbatch', 'selfcal_part1.sbatch']
+
+    def test_two_loops_expands_correctly(self, tmp_path):
+        cfg = tmp_path / 'cfg.txt'
+        cfg.write_text('[selfcal]\nnloops = 2\nloop = 0\n')
+        scripts = ['selfcal_part1.sbatch', 'selfcal_part2.sbatch', 'concat.sbatch']
+        result = _expand_selfcal_loops(str(cfg), scripts)
+        assert result == [
+            'selfcal_part1.sbatch', 'selfcal_part2.sbatch',
+            'selfcal_part1.sbatch', 'selfcal_part2.sbatch',
+            'selfcal_part1.sbatch',
+            'concat.sbatch',
+        ]
+
+    def test_non_adjacent_selfcal_pair_unchanged(self, tmp_path):
+        cfg = tmp_path / 'cfg.txt'
+        cfg.write_text('[selfcal]\nnloops = 2\nloop = 0\n')
+        scripts = ['selfcal_part1.sbatch', 'other.sbatch', 'selfcal_part2.sbatch']
+        result = _expand_selfcal_loops(str(cfg), scripts)
+        assert result == scripts
+
+    def test_start_loop_nonzero_reduces_expansion(self, tmp_path):
+        cfg = tmp_path / 'cfg.txt'
+        cfg.write_text('[selfcal]\nnloops = 3\nloop = 2\n')
+        scripts = ['selfcal_part1.sbatch', 'selfcal_part2.sbatch']
+        result = _expand_selfcal_loops(str(cfg), scripts)
+        # selfcal_loops = nloops - loop = 1; same as one-loop case
+        assert result == ['selfcal_part1.sbatch', 'selfcal_part2.sbatch', 'selfcal_part1.sbatch']

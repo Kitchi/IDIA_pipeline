@@ -67,7 +67,7 @@ def pop_script(kwargs, script):
 def format_args(config, submit, quiet, dependencies, justrun):
     """Validate config and build kwargs dict for write_jobs()."""
 
-    from processMeerKAT import validate_args
+    from processMeerKAT import validate_args, _FACILITY
     from spw import spw_split
 
     kwargs = get_config_kwargs(config, 'slurm', SLURM_CONFIG_KEYS)
@@ -95,12 +95,15 @@ def format_args(config, submit, quiet, dependencies, justrun):
         config_parser.overwrite_config(config, conf_dict={'nspw': 1}, conf_sec='crosscal')
         nspw = 1
 
+    def _names(lst):
+        return [s[0] for s in lst]
+
     if config_parser.has_section(config, 'selfcal') and (
-        'selfcal_part1.py' in [i[0] for i in kwargs['postcal_scripts']]
-        or 'selfcal_part1.py' in [i[0] for i in kwargs['scripts']]
+        'selfcal_part1.py' in _names(kwargs['postcal_scripts'])
+        or 'selfcal_part1.py' in _names(kwargs['scripts'])
     ):
         selfcal_kwargs = get_config_kwargs(config, 'selfcal', SELFCAL_CONFIG_KEYS)
-        bookkeeping.get_selfcal_params()
+        bookkeeping.get_selfcal_params(config)
         if selfcal_kwargs['loop'] > 0:
             logger.warning("Starting with loop={0}. Only valid if previous loops were run.".format(selfcal_kwargs['loop']))
         elif selfcal_kwargs['outlier_threshold'] != 0 and selfcal_kwargs['outlier_threshold'] != '':
@@ -114,10 +117,9 @@ def format_args(config, submit, quiet, dependencies, justrun):
                 copyfile('../{0}'.format(outlierfile), outlierfile)
                 copyfile('../{0}'.format(outliers_loop0), outliers_loop0)
             else:
-                if selfcal_kwargs['outlier_radius'] not in ('', 0.0):
-                    txt = 'within {0} degrees'.format(selfcal_kwargs['outlier_radius'])
-                else:
-                    txt = 'within calculated search radius'
+                txt = ('within {0} degrees'.format(selfcal_kwargs['outlier_radius'])
+                       if selfcal_kwargs['outlier_radius'] not in ('', 0.0)
+                       else 'within calculated search radius')
                 logger.info('Populating sky model for selfcal using outlier_threshold={0} {1}'.format(
                     selfcal_kwargs['outlier_threshold'], txt
                 ))
@@ -139,9 +141,9 @@ def format_args(config, submit, quiet, dependencies, justrun):
     if nspw == 1:
         if len(kwargs['precal_scripts']) > 0 or len(kwargs['postcal_scripts']) > 0:
             logger.warning('Appending pre/postcal_scripts to scripts since nspw=1.')
-            if ('calc_refant.py' in [i[0] for i in kwargs['precal_scripts']]
-                    and 'calc_refant.py' in [i[0] for i in kwargs['scripts']]):
-                kwargs['precal_scripts'].pop([i[0] for i in kwargs['precal_scripts']].index('calc_refant.py'))
+            if ('calc_refant.py' in _names(kwargs['precal_scripts'])
+                    and 'calc_refant.py' in _names(kwargs['scripts'])):
+                kwargs['precal_scripts'].pop(_names(kwargs['precal_scripts']).index('calc_refant.py'))
 
             scripts = kwargs['precal_scripts'] + kwargs['scripts'] + kwargs['postcal_scripts']
             config_parser.overwrite_config(config, conf_dict={'scripts': scripts}, conf_sec='slurm')
@@ -158,7 +160,6 @@ def format_args(config, submit, quiet, dependencies, justrun):
     validate_args(kwargs, config)
 
     # Facility validation runs only at -R time (requires SLURM node + sacctmgr/scontrol)
-    from processMeerKAT import _FACILITY
     kwargs['account'] = _FACILITY.validate_account(kwargs.get('account'), config)
     _FACILITY.validate_reservation(kwargs.get('reservation', ''), kwargs, config)
 
@@ -180,8 +181,7 @@ def format_args(config, submit, quiet, dependencies, justrun):
         if threadsafe_script in kwargs['scripts']:
             kwargs['threadsafe'][kwargs['scripts'].index(threadsafe_script)] = True
 
-    from constants import NTASKS_PER_NODE_LIMIT
-    if kwargs['ntasks_per_node'] < NTASKS_PER_NODE_LIMIT and nspw > 1:
+    if kwargs['ntasks_per_node'] < _FACILITY.cpus_per_node_limit and nspw > 1:
         mem = int(mem // (nspw / 2))
 
     dopol = config_parser.get_key(config, 'run', 'dopol')
@@ -276,13 +276,7 @@ def default_config(arg_dict):
             config_parser.remove_section(filename, 'image')
             remove_scripts += ['science_image.py']
 
-        scripts = arg_dict['postcal_scripts']
-        i = 0
-        while i < len(scripts):
-            if scripts[i][0] in remove_scripts:
-                scripts.pop(i)
-                i -= 1
-            i += 1
+        scripts = [s for s in arg_dict['postcal_scripts'] if s[0] not in remove_scripts]
         config_parser.overwrite_config(filename, conf_dict={'postcal_scripts': scripts}, conf_sec='slurm')
 
     if not arg_dict['nofields']:

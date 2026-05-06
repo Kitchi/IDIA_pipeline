@@ -22,13 +22,12 @@ logger = logging.getLogger(__name__)
 
 def check_bash_path(fname):
     """Check if file is in your bash PATH and executable; prepend path if so."""
-    PATH = os.environ['PATH'].split(':')
-    for path in PATH:
-        if os.path.exists('{0}/{1}'.format(path, fname)):
-            if not os.access('{0}/{1}'.format(path, fname), os.X_OK):
+    for path in os.environ['PATH'].split(':'):
+        full = '{0}/{1}'.format(path, fname)
+        if os.path.exists(full):
+            if not os.access(full, os.X_OK):
                 raise IOError('"{0}" found in "{1}" but file is not executable.'.format(fname, path))
-            fname = '{0}/{1}'.format(path, fname)
-            break
+            return full
     return fname
 
 
@@ -296,6 +295,28 @@ def write_all_bash_jobs_scripts(master, extn, IDs, dir='jobScripts',
 
 
 # ---------------------------------------------------------------------------
+# Master script generation helpers
+# ---------------------------------------------------------------------------
+
+def _expand_selfcal_loops(config, scripts):
+    """Expand selfcal_part1/2 in script list to cover all selfcal loops."""
+    if not (config_parser.has_section(config, 'selfcal')
+            and 'selfcal_part1.sbatch' in scripts
+            and 'selfcal_part2.sbatch' in scripts):
+        return scripts
+    start_loop = config_parser.get_key(config, 'selfcal', 'loop')
+    selfcal_loops = config_parser.get_key(config, 'selfcal', 'nloops') - start_loop
+    idx = scripts.index('selfcal_part2.sbatch')
+    if idx != scripts.index('selfcal_part1.sbatch') + 1:
+        return scripts
+    head = scripts[:idx + 1]
+    tail = scripts[idx + 1:]
+    head.extend(['selfcal_part1.sbatch', 'selfcal_part2.sbatch'] * (selfcal_loops - 1))
+    head.append('selfcal_part1.sbatch')
+    return head + tail
+
+
+# ---------------------------------------------------------------------------
 # Master script generation
 # ---------------------------------------------------------------------------
 
@@ -304,8 +325,6 @@ def write_master(filename, config, scripts=[], submit=False,
                  echo=True, dependencies='', slurm_kwargs={}):
     """Write master pipeline submission script (single-SPW case)."""
 
-    master = open(filename, 'w')
-    master.write('#!/bin/bash\n')
     timestamp = config_parser.get_key(config, 'run', 'timestamp')
     if timestamp == '':
         timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -316,23 +335,13 @@ def write_master(filename, config, scripts=[], submit=False,
             sec_comment='# Internal variables for pipeline execution',
         )
 
+    scripts = _expand_selfcal_loops(config, scripts)
+
+    master = open(filename, 'w')
+    master.write('#!/bin/bash\n')
     if verbose:
         master.write("\necho Copying '{0}' to '{1}', and using this to run pipeline.\n".format(config, TMP_CONFIG))
     master.write('cp {0} {1}\n'.format(config, TMP_CONFIG))
-
-    # Expand selfcal loops if needed
-    if (config_parser.has_section(config, 'selfcal')
-            and 'selfcal_part1.sbatch' in scripts
-            and 'selfcal_part2.sbatch' in scripts):
-        start_loop = config_parser.get_key(config, 'selfcal', 'loop')
-        selfcal_loops = config_parser.get_key(config, 'selfcal', 'nloops') - start_loop
-        idx = scripts.index('selfcal_part2.sbatch')
-        if idx == scripts.index('selfcal_part1.sbatch') + 1:
-            init_scripts = scripts[:idx + 1]
-            final_scripts = scripts[idx + 1:]
-            init_scripts.extend(['selfcal_part1.sbatch', 'selfcal_part2.sbatch'] * (selfcal_loops - 1))
-            init_scripts.append('selfcal_part1.sbatch')
-            scripts = init_scripts + final_scripts
 
     command = 'sbatch'
     if dependencies != '':
@@ -445,21 +454,7 @@ def write_spw_master(filename, config, SPWs, precal_scripts, postcal_scripts,
 
     if 'concat.sbatch' in postcal_scripts:
         master.write('echo Will concatenate MSs/MMSs and create quick-look continuum cube across all SPWs for all fields from "{0}".\n'.format(config))
-    scripts = postcal_scripts[:]
-
-    # Expand selfcal loops if needed
-    if (config_parser.has_section(config, 'selfcal')
-            and 'selfcal_part1.sbatch' in scripts
-            and 'selfcal_part2.sbatch' in scripts):
-        start_loop = config_parser.get_key(config, 'selfcal', 'loop')
-        selfcal_loops = config_parser.get_key(config, 'selfcal', 'nloops') - start_loop
-        idx = scripts.index('selfcal_part2.sbatch')
-        if idx == scripts.index('selfcal_part1.sbatch') + 1:
-            init_scripts = scripts[:idx + 1]
-            final_scripts = scripts[idx + 1:]
-            init_scripts.extend(['selfcal_part1.sbatch', 'selfcal_part2.sbatch'] * (selfcal_loops - 1))
-            init_scripts.append('selfcal_part1.sbatch')
-            scripts = init_scripts + final_scripts
+    scripts = _expand_selfcal_loops(config, postcal_scripts[:])
 
     if len(scripts) > 0:
         command = "sbatch -d afterany:${IDs//,/:}"
@@ -593,27 +588,20 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
 
     for i, script in enumerate(scripts):
         jobname = os.path.splitext(os.path.split(script)[1])[0]
-        if threadsafe[i]:
-            write_sbatch(
-                script, '--config {0}'.format(TMP_CONFIG),
-                nodes=nodes, tasks=ntasks_per_node, mem=mem, plane=plane,
-                exclude=exclude, mpi_wrapper=mpi_wrapper,
-                container=containers[i], partition=partition, time=time,
-                name=jobname, runname=name,
-                SPWs=crosscal_kwargs['spw'], nspw=crosscal_kwargs['nspw'],
-                account=account, reservation=reservation,
-                modules=modules, justrun=justrun,
-            )
-        else:
-            write_sbatch(
-                script, '--config {0}'.format(TMP_CONFIG),
-                nodes=1, tasks=1, mem=mem, plane=1,
-                mpi_wrapper='srun', container=containers[i],
-                partition=partition, time=time, name=jobname, runname=name,
-                SPWs=crosscal_kwargs['spw'], nspw=crosscal_kwargs['nspw'],
-                exclude=exclude, account=account, reservation=reservation,
-                modules=modules, justrun=justrun,
-            )
+        ts = threadsafe[i]
+        write_sbatch(
+            script, '--config {0}'.format(TMP_CONFIG),
+            nodes=nodes if ts else 1,
+            tasks=ntasks_per_node if ts else 1,
+            mem=mem,
+            plane=plane if ts else 1,
+            mpi_wrapper=mpi_wrapper if ts else 'srun',
+            container=containers[i], partition=partition, time=time,
+            name=jobname, runname=name,
+            SPWs=crosscal_kwargs['spw'], nspw=crosscal_kwargs['nspw'],
+            exclude=exclude, account=account, reservation=reservation,
+            modules=modules, justrun=justrun,
+        )
 
     scripts = [os.path.split(scripts[i])[1].replace('.py', '.sbatch') for i in range(len(scripts))]
     precal_scripts = scripts[:num_precal_scripts]
