@@ -6,14 +6,14 @@ from shutil import copyfile
 from copy import deepcopy
 from datetime import datetime
 
-import config_parser
-import bookkeeping
-from constants import (
+from . import config_parser
+from . import bookkeeping
+from .constants import (
     FIELDS_CONFIG_KEYS, CROSSCAL_CONFIG_KEYS, SELFCAL_CONFIG_KEYS,
     IMAGING_CONFIG_KEYS, SLURM_CONFIG_KEYS, SLURM_CONFIG_STR_KEYS,
     TMP_CONFIG, CONFIG, SCRIPT_DIR,
 )
-from slurm_jobs import srun, write_command, write_jobs, check_path
+from .slurm_jobs import srun, write_command, write_jobs, check_path
 
 logger = logging.getLogger(__name__)
 

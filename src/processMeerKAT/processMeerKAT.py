@@ -26,31 +26,28 @@ import os
 import logging
 from time import gmtime
 
-import config_parser
-from constants import (
+from . import config_parser
+from .constants import (
     THIS_PROG, SCRIPT_DIR, LOG_DIR,
     CONFIG, TMP_CONFIG, MASTER_SCRIPT, SPW_PREFIX,
     FIELDS_CONFIG_KEYS, CROSSCAL_CONFIG_KEYS, SELFCAL_CONFIG_KEYS,
     IMAGING_CONFIG_KEYS, SLURM_CONFIG_STR_KEYS, SLURM_CONFIG_KEYS,
     PRECAL_SCRIPTS, POSTCAL_SCRIPTS, SCRIPTS,
 )
-# Re-export SPW utilities so callers that do `processMeerKAT.get_spw_bounds` still work
-from spw import get_spw_bounds, linspace, spw_split
-# Re-export job-writing utilities
-from slurm_jobs import (
+from .spw import get_spw_bounds, linspace, spw_split
+from .slurm_jobs import (
     check_path, check_bash_path,
     write_command, write_sbatch, srun,
     write_master, write_spw_master,
     write_all_bash_jobs_scripts, write_bash_job_script,
     write_jobs,
 )
-# Re-export orchestration utilities
-from pipeline import (
+from .pipeline import (
     get_config_kwargs, get_slurm_dict, pop_script,
     format_args, default_config,
 )
-from facilities import get_facility
-from facilities.ilifu import ILIFU
+from .facilities import get_facility
+from .facilities.ilifu import ILIFU
 
 logging.Formatter.converter = gmtime
 logger = logging.getLogger(__name__)

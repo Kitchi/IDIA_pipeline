@@ -1,14 +1,7 @@
 """Pytest fixtures shared across all tests."""
 
 import os
-import sys
 import pytest
-
-# Ensure processMeerKAT/ is importable regardless of CWD
-PIPELINE_DIR = os.path.join(os.path.dirname(__file__), '..', 'processMeerKAT')
-PIPELINE_DIR = os.path.abspath(PIPELINE_DIR)
-if PIPELINE_DIR not in sys.path:
-    sys.path.insert(0, PIPELINE_DIR)
 
 TEST_MS = '/home/krishna/work/data/test_refactor/1538856059_sdp_l0.cals.1350-1450.scan1and3.ms'
 

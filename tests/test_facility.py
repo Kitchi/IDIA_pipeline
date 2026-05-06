@@ -3,11 +3,12 @@
 import dataclasses
 import pytest
 
-from facilities import get_facility, FACILITIES
-from facilities.base import FacilityConfig, _noop_validate_account, _noop_validate_reservation
-from facilities.ilifu import ILIFU
-from facilities.generic_slurm import GENERIC_SLURM
+from processMeerKAT.facilities import get_facility, FACILITIES
+from processMeerKAT.facilities.base import FacilityConfig, _noop_validate_account, _noop_validate_reservation
+from processMeerKAT.facilities.ilifu import ILIFU
+from processMeerKAT.facilities.generic_slurm import GENERIC_SLURM
 import processMeerKAT as pmk
+import processMeerKAT.processMeerKAT as _pmk_mod
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +110,6 @@ class TestLoadFacilityFromConfig:
 
     def test_no_facility_section_returns_default(self, minimal_config, monkeypatch):
         """Config without [facility] section → current default facility returned."""
-        import config_parser
         # Strip the [facility] section from the fixture config
         text = open(minimal_config).read()
         text = '\n'.join(
@@ -117,19 +117,19 @@ class TestLoadFacilityFromConfig:
             if not line.startswith('[facility]') and "name = 'ilifu'" not in line
         )
         open(minimal_config, 'w').write(text)
-        monkeypatch.setattr(pmk, '_FACILITY', ILIFU)
+        monkeypatch.setattr(_pmk_mod, '_FACILITY', ILIFU)
         result = pmk.load_facility_from_config(minimal_config)
         assert result is ILIFU
 
     def test_known_facility_name_loaded(self, minimal_config, monkeypatch):
-        monkeypatch.setattr(pmk, '_FACILITY', ILIFU)
+        monkeypatch.setattr(_pmk_mod, '_FACILITY', ILIFU)
         result = pmk.load_facility_from_config(minimal_config)
         assert result is ILIFU
 
     def test_override_field_via_config(self, tmp_path, monkeypatch):
         cfg = tmp_path / 'cfg.txt'
         cfg.write_text("[facility]\nname = 'ilifu'\ntotal_nodes_limit = 10\n")
-        monkeypatch.setattr(pmk, '_FACILITY', ILIFU)
+        monkeypatch.setattr(_pmk_mod, '_FACILITY', ILIFU)
         result = pmk.load_facility_from_config(str(cfg))
         assert result.total_nodes_limit == 10
         assert result.cpus_per_node_limit == ILIFU.cpus_per_node_limit
@@ -137,7 +137,7 @@ class TestLoadFacilityFromConfig:
     def test_unknown_facility_name_raises(self, tmp_path, monkeypatch):
         cfg = tmp_path / 'cfg.txt'
         cfg.write_text("[facility]\nname = 'badname'\n")
-        monkeypatch.setattr(pmk, '_FACILITY', ILIFU)
+        monkeypatch.setattr(_pmk_mod, '_FACILITY', ILIFU)
         with pytest.raises(ValueError, match="Unknown facility"):
             pmk.load_facility_from_config(str(cfg))
 
@@ -160,13 +160,13 @@ class TestValidateArgsUsesFacilityLimits:
         }
 
     def test_nodes_within_facility_limit_passes(self, monkeypatch):
-        monkeypatch.setattr(pmk, '_FACILITY', get_facility('ilifu'))
+        monkeypatch.setattr(_pmk_mod, '_FACILITY', get_facility('ilifu'))
         args = self._base_args()
         args['nodes'] = 79
         pmk.validate_args(args, 'cfg.txt')  # must not raise
 
     def test_nodes_exceed_facility_limit_raises(self, monkeypatch):
-        monkeypatch.setattr(pmk, '_FACILITY', get_facility('ilifu'))
+        monkeypatch.setattr(_pmk_mod, '_FACILITY', get_facility('ilifu'))
         args = self._base_args()
         args['nodes'] = 80
         with pytest.raises(ValueError, match="must not exceed 79"):
@@ -174,34 +174,34 @@ class TestValidateArgsUsesFacilityLimits:
 
     def test_custom_facility_limit_used(self, monkeypatch):
         small_facility = get_facility('ilifu', total_nodes_limit=5)
-        monkeypatch.setattr(pmk, '_FACILITY', small_facility)
+        monkeypatch.setattr(_pmk_mod, '_FACILITY', small_facility)
         args = self._base_args()
         args['nodes'] = 6
         with pytest.raises(ValueError, match="must not exceed 5"):
             pmk.validate_args(args, 'cfg.txt')
 
     def test_mem_within_limit_passes(self, monkeypatch):
-        monkeypatch.setattr(pmk, '_FACILITY', get_facility('ilifu'))
+        monkeypatch.setattr(_pmk_mod, '_FACILITY', get_facility('ilifu'))
         args = self._base_args()
         args['mem'] = 232
         pmk.validate_args(args, 'cfg.txt')
 
     def test_mem_exceeds_limit_raises(self, monkeypatch):
-        monkeypatch.setattr(pmk, '_FACILITY', get_facility('ilifu'))
+        monkeypatch.setattr(_pmk_mod, '_FACILITY', get_facility('ilifu'))
         args = self._base_args()
         args['mem'] = 300
         with pytest.raises(ValueError, match="must not exceed 232"):
             pmk.validate_args(args, 'cfg.txt')
 
     def test_highmem_partition_allows_higher_mem(self, monkeypatch):
-        monkeypatch.setattr(pmk, '_FACILITY', get_facility('ilifu'))
+        monkeypatch.setattr(_pmk_mod, '_FACILITY', get_facility('ilifu'))
         args = self._base_args()
         args['mem'] = 300
         args['partition'] = 'HighMem'
         pmk.validate_args(args, 'cfg.txt')  # must not raise
 
     def test_highmem_exceeds_highmem_limit_raises(self, monkeypatch):
-        monkeypatch.setattr(pmk, '_FACILITY', get_facility('ilifu'))
+        monkeypatch.setattr(_pmk_mod, '_FACILITY', get_facility('ilifu'))
         args = self._base_args()
         args['mem'] = 500
         args['partition'] = 'HighMem'
@@ -216,7 +216,7 @@ class TestValidateArgsUsesFacilityLimits:
             validate_account=lambda *a, **kw: called.append('account') or a[0],
             validate_reservation=lambda *a, **kw: called.append('reservation'),
         )
-        monkeypatch.setattr(pmk, '_FACILITY', f)
+        monkeypatch.setattr(_pmk_mod, '_FACILITY', f)
         args = self._base_args()
         pmk.validate_args(args, 'cfg.txt')
         assert called == [], "Facility validation must not run during validate_args (only during -R)"

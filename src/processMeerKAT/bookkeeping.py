@@ -11,8 +11,8 @@ import traceback
 import argparse
 from collections import namedtuple
 
-import config_parser
-from config_parser import typed_get
+from . import config_parser
+from .config_parser import typed_get
 
 import logging
 from time import gmtime
@@ -152,7 +152,7 @@ def rename_logs(logfile=''):
 
 def _parse_script_config():
     """Parse -C/--config from the calibration script's argv."""
-    from constants import CONFIG
+    from .constants import CONFIG
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('-C', '--config', default=CONFIG)
     args, _ = parser.parse_known_args()

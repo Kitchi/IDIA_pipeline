@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock, mock_open
 import os
 import sys
 
-from bookkeeping import (
+from processMeerKAT.bookkeeping import (
     get_calfiles, get_field_ids, run_script, get_selfcal_params, get_imaging_params,
     Calfiles, FieldIDs,
 )
@@ -98,8 +98,8 @@ _SELFCAL_TASKVALS = {
 }
 
 
-@patch('bookkeeping.config_parser.parse_config')
-@patch('bookkeeping.logger')
+@patch('processMeerKAT.bookkeeping.config_parser.parse_config')
+@patch('processMeerKAT.bookkeeping.logger')
 def test_get_selfcal_params_success(mock_logger, mock_parse_config):
     mock_parse_config.return_value = (_SELFCAL_TASKVALS, None)
 
@@ -112,8 +112,8 @@ def test_get_selfcal_params_success(mock_logger, mock_parse_config):
     assert params['loop'] == 10
 
 
-@patch('bookkeeping.config_parser.parse_config')
-@patch('bookkeeping.logger')
+@patch('processMeerKAT.bookkeeping.config_parser.parse_config')
+@patch('processMeerKAT.bookkeeping.logger')
 def test_get_selfcal_params_input_error_list_violation(mock_logger, mock_parse_config):
     taskvals = {
         'selfcal': {
@@ -133,8 +133,8 @@ def test_get_selfcal_params_input_error_list_violation(mock_logger, mock_parse_c
         get_selfcal_params(config_path='/fake/config.ini')
 
 
-@patch('bookkeeping.config_parser.parse_config')
-@patch('bookkeeping.logger')
+@patch('processMeerKAT.bookkeeping.config_parser.parse_config')
+@patch('processMeerKAT.bookkeeping.logger')
 def test_get_selfcal_params_length_mismatch(mock_logger, mock_parse_config):
     # nloops=2 → gaincal_args need length 2, others need length 3
     # solint is a gaincal_arg: providing length 1 triggers mismatch
@@ -166,14 +166,14 @@ _IMAGING_TASKVALS = {
 }
 
 
-@patch('bookkeeping.config_parser.parse_config')
-@patch('bookkeeping.os.path.exists')
-@patch('bookkeeping.open', new_callable=mock_open, read_data='imagename=A\nimagename=B\n')
+@patch('processMeerKAT.bookkeeping.config_parser.parse_config')
+@patch('processMeerKAT.bookkeeping.os.path.exists')
+@patch('processMeerKAT.bookkeeping.open', new_callable=mock_open, read_data='imagename=A\nimagename=B\n')
 def test_get_imaging_params_mask_file_reused(mock_file_open, mock_exists, mock_parse_config):
     mock_parse_config.return_value = (_IMAGING_TASKVALS, None)
     mock_exists.return_value = True
 
-    with patch('bookkeeping.os.rename') as mock_rename:
+    with patch('processMeerKAT.bookkeeping.os.rename') as mock_rename:
         get_imaging_params(config_path='/fake/config.ini')
         mock_rename.assert_any_call('A.mask', 'A.mask.old')
         mock_rename.assert_any_call('B.mask', 'B.mask.old')
@@ -192,9 +192,9 @@ _RUN_TASKVALS_STOPPED = {
 }
 
 
-@patch('bookkeeping.config_parser.parse_config')
-@patch('bookkeeping.logger')
-@patch('bookkeeping.sys.exit')
+@patch('processMeerKAT.bookkeeping.config_parser.parse_config')
+@patch('processMeerKAT.bookkeeping.logger')
+@patch('processMeerKAT.bookkeeping.sys.exit')
 def test_run_script_successful_run(mock_exit, mock_logger, mock_parse_config):
     mock_parse_config.return_value = (_RUN_TASKVALS_OK, None)
     mock_func = MagicMock()
@@ -205,8 +205,8 @@ def test_run_script_successful_run(mock_exit, mock_logger, mock_parse_config):
     mock_exit.assert_not_called()
 
 
-@patch('bookkeeping.config_parser.parse_config')
-@patch('bookkeeping.logger')
+@patch('processMeerKAT.bookkeeping.config_parser.parse_config')
+@patch('processMeerKAT.bookkeeping.logger')
 def test_run_script_skipped_due_to_continue_false(mock_logger, mock_parse_config):
     mock_parse_config.return_value = (_RUN_TASKVALS_STOPPED, None)
     mock_func = MagicMock()
@@ -218,10 +218,10 @@ def test_run_script_skipped_due_to_continue_false(mock_logger, mock_parse_config
     assert exc_info.value.code == 1
 
 
-@patch('bookkeeping.config_parser.overwrite_config')
-@patch('bookkeeping.config_parser.parse_config')
-@patch('bookkeeping.logger')
-@patch('bookkeeping.sys.exit')
+@patch('processMeerKAT.bookkeeping.config_parser.overwrite_config')
+@patch('processMeerKAT.bookkeeping.config_parser.parse_config')
+@patch('processMeerKAT.bookkeeping.logger')
+@patch('processMeerKAT.bookkeeping.sys.exit')
 def test_run_script_failed_and_set_continue_false(mock_exit, mock_logger, mock_parse_config, mock_overwrite):
     mock_parse_config.return_value = (_RUN_TASKVALS_OK, None)
     mock_func = MagicMock(side_effect=RuntimeError("Bad CAL file detected"))

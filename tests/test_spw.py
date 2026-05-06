@@ -184,7 +184,7 @@ dopol = False
 
     def test_spw_config_has_nspw_1(self, tmp_path):
         """Each per-SPW config should have nspw=1."""
-        import config_parser
+        import processMeerKAT.config_parser as config_parser
         old_dir = os.getcwd()
         os.chdir(tmp_path)
         try:

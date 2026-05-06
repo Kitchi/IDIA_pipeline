@@ -4,7 +4,7 @@ import os
 import re
 import pytest
 import processMeerKAT as pmk
-from slurm_jobs import _expand_selfcal_loops
+from processMeerKAT.slurm_jobs import _expand_selfcal_loops
 
 
 # ---------------------------------------------------------------------------

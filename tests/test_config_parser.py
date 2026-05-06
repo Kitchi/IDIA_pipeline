@@ -4,7 +4,7 @@ import os
 import pytest
 import ast
 
-import config_parser
+import processMeerKAT.config_parser as config_parser
 
 
 # ---------------------------------------------------------------------------

@@ -5,8 +5,8 @@ import re
 import logging
 from shutil import copyfile
 
-import config_parser
-from constants import SPW_PREFIX
+from . import config_parser
+from .constants import SPW_PREFIX
 
 logger = logging.getLogger(__name__)
 

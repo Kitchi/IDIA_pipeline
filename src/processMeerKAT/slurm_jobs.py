@@ -5,8 +5,8 @@ import logging
 from copy import deepcopy
 from datetime import datetime
 
-import config_parser
-from constants import (
+from . import config_parser
+from .constants import (
     LOG_DIR, SCRIPT_DIR, CALIB_SCRIPTS_DIR, AUX_SCRIPTS_DIR,
     SELFCAL_SCRIPTS_DIR, TMP_CONFIG, MASTER_SCRIPT, SPW_PREFIX, THIS_PROG,
     MPI_WRAPPER, CONTAINER,

@@ -28,7 +28,7 @@ def test_cli_mutual_exclusion_exits():
     assert exc.value.code == 2
 
 
-@patch('processMeerKAT.validate_args')
+@patch('processMeerKAT.processMeerKAT.validate_args')
 def test_cli_build_mode_parses_args(mock_validate):
     """-B with -M returns Namespace(build=True, MS=...) and calls validate_args."""
     sys.argv = ['processMeerKAT.py', '-B', '-M', 'test.ms']
@@ -46,7 +46,7 @@ def test_cli_run_mode_nonexistent_config_exits():
     assert exc.value.code == 2
 
 
-@patch('processMeerKAT.validate_args',
+@patch('processMeerKAT.processMeerKAT.validate_args',
        side_effect=ValueError("Memory per node exceeds facility limit."))
 def test_cli_validate_args_error_propagates(mock_validate):
     """Errors from validate_args propagate out of parse_args."""
