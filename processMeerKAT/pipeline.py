@@ -157,6 +157,11 @@ def format_args(config, submit, quiet, dependencies, justrun):
     kwargs['MS'] = data_kwargs['vis']
     validate_args(kwargs, config)
 
+    # Facility validation runs only at -R time (requires SLURM node + sacctmgr/scontrol)
+    from processMeerKAT import _FACILITY
+    kwargs['account'] = _FACILITY.validate_account(kwargs.get('account'), config)
+    _FACILITY.validate_reservation(kwargs.get('reservation', ''), kwargs, config)
+
     kwargs['scripts'] = [check_path(i[0]) for i in scripts]
     kwargs['threadsafe'] = [i[1] for i in scripts]
     kwargs['containers'] = [check_path(i[2]) for i in scripts]
@@ -244,6 +249,17 @@ def default_config(arg_dict):
 
     config_parser.overwrite_config(filename, conf_dict=slurm_dict, conf_sec='slurm')
     config_parser.overwrite_config(filename, conf_dict={'vis': "'{0}'".format(MS)}, conf_sec='data')
+
+    from processMeerKAT import _FACILITY
+    config_parser.overwrite_config(
+        filename,
+        conf_dict={'name': "'{0}'".format(_FACILITY.name)},
+        conf_sec='facility',
+        sec_comment=(
+            '# Known facilities: ilifu, generic_slurm\n'
+            '# For a known facility, defaults are pre-validated — override only what differs.'
+        ),
+    )
     config_parser.overwrite_config(
         filename,
         conf_dict={'dopol': arg_dict['dopol']},

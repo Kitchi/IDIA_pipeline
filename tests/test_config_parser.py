@@ -46,7 +46,7 @@ def test_parse_config_bad_value(tmp_path):
     """Unquoted strings that aren't valid Python literals should raise ValueError."""
     cfg = tmp_path / 'bad.txt'
     cfg.write_text('[data]\nvis = not a string and not quoted\n')
-    with pytest.raises(ValueError, match="Cannot format field"):
+    with pytest.raises(ValueError, match="Cannot format field 'vis'"):
         config_parser.parse_config(str(cfg))
 
 
@@ -159,3 +159,79 @@ def test_validate_args_invalid_dtype(minimal_config):
     taskvals, _ = config_parser.parse_config(minimal_config)
     with pytest.raises(NotImplementedError):
         config_parser.validate_args(taskvals, 'slurm', 'nodes', list)
+
+
+# ---------------------------------------------------------------------------
+# typed_get — new API (same semantics, non-mutating, better errors)
+# ---------------------------------------------------------------------------
+
+def test_typed_get_str(minimal_config):
+    taskvals, _ = config_parser.parse_config(minimal_config)
+    assert config_parser.typed_get(taskvals, 'slurm', 'partition', str) == 'Main'
+
+
+def test_typed_get_int(minimal_config):
+    taskvals, _ = config_parser.parse_config(minimal_config)
+    result = config_parser.typed_get(taskvals, 'slurm', 'nodes', int)
+    assert result == 1 and isinstance(result, int)
+
+
+def test_typed_get_bool(minimal_config):
+    taskvals, _ = config_parser.parse_config(minimal_config)
+    assert config_parser.typed_get(taskvals, 'slurm', 'submit', bool) is False
+
+
+def test_typed_get_float(tmp_path):
+    cfg = tmp_path / 'cfg.txt'
+    cfg.write_text("[crosscal]\nrobust = -0.5\n")
+    taskvals, _ = config_parser.parse_config(str(cfg))
+    result = config_parser.typed_get(taskvals, 'crosscal', 'robust', float)
+    assert result == -0.5 and isinstance(result, float)
+
+
+def test_typed_get_default_when_missing(minimal_config):
+    taskvals, _ = config_parser.parse_config(minimal_config)
+    result = config_parser.typed_get(taskvals, 'slurm', 'nonexistent', int, default=42)
+    assert result == 42
+
+
+def test_typed_get_missing_required_raises(minimal_config):
+    taskvals, _ = config_parser.parse_config(minimal_config)
+    with pytest.raises(KeyError, match="nonexistent"):
+        config_parser.typed_get(taskvals, 'slurm', 'nonexistent', int)
+
+
+def test_typed_get_does_not_mutate(minimal_config):
+    """typed_get must not remove keys from the config dict (old validate_args used pop)."""
+    taskvals, _ = config_parser.parse_config(minimal_config)
+    config_parser.typed_get(taskvals, 'slurm', 'nodes', int, default=99)
+    assert 'nodes' in taskvals['slurm']
+
+
+def test_typed_get_strips_trailing_slash(tmp_path):
+    cfg = tmp_path / 'cfg.txt'
+    cfg.write_text("[slurm]\ncontainer = '/some/path/'\n")
+    taskvals, _ = config_parser.parse_config(str(cfg))
+    assert config_parser.typed_get(taskvals, 'slurm', 'container', str) == '/some/path'
+
+
+def test_typed_get_bad_int_raises(tmp_path):
+    cfg = tmp_path / 'cfg.txt'
+    cfg.write_text("[slurm]\nnodes = 'notanint'\n")
+    taskvals, _ = config_parser.parse_config(str(cfg))
+    with pytest.raises(ValueError, match="cannot be converted to int"):
+        config_parser.typed_get(taskvals, 'slurm', 'nodes', int)
+
+
+def test_typed_get_bad_bool_raises(tmp_path):
+    cfg = tmp_path / 'cfg.txt'
+    cfg.write_text("[slurm]\nsubmit = 'yes'\n")
+    taskvals, _ = config_parser.parse_config(str(cfg))
+    with pytest.raises(ValueError, match="is not a bool"):
+        config_parser.typed_get(taskvals, 'slurm', 'submit', bool)
+
+
+def test_typed_get_unsupported_dtype(minimal_config):
+    taskvals, _ = config_parser.parse_config(minimal_config)
+    with pytest.raises(NotImplementedError):
+        config_parser.typed_get(taskvals, 'slurm', 'nodes', list)

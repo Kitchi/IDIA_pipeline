@@ -1,184 +1,205 @@
 #Copyright (C) 2022 Inter-University Institute for Data Intensive Astronomy
 #See processMeerKAT.py for license details.
 
-#!/usr/bin/env python3
+"""Config file I/O for the MeerKAT pipeline.
 
-import argparse
+Public API
+----------
+parse_config(filename)              Parse an INI config → (dict, ConfigParser)
+has_section(filename, section)
+has_key(filename, section, key)
+get_key(filename, section, key)
+overwrite_config(filename, ...)
+remove_section(filename, section)
+parse_spw(filename)                 Parse SPW bounds from [crosscal] section
+typed_get(config_dict, section, key, dtype, default=None)
+    Extract and type-coerce a value from a parsed config dict.
+    Use this instead of the old validate_args alias.
+"""
+
 import configparser
 import ast
 import logging
-from constants import CONFIG, LOG_DIR
 
 logger = logging.getLogger(__name__)
 
-def parse_args():
-    """
-    Parse the command line arguments
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-C','--config', default=CONFIG, required=False, help='Name of the input config file')
 
-    args, __ = parser.parse_known_args()
-
-    return vars(args)
-
+# ---------------------------------------------------------------------------
+# Core parse
+# ---------------------------------------------------------------------------
 
 def parse_config(filename):
-    """
-    Given an input config file, parses it to extract key-value pairs that
-    should represent task parameters and values respectively.
-    """
+    """Parse *filename* and return (taskvals_dict, ConfigParser).
 
+    Values are evaluated with ast.literal_eval so Python literals (int, bool,
+    list, str, …) come back as their proper types.  Strings must be quoted in
+    the config file.
+    """
     config = configparser.ConfigParser(allow_no_value=True)
     config.read(filename)
 
-    # Build a nested dictionary with tasknames at the top level
-    # and parameter values one level down.
-    taskvals = dict()
+    taskvals = {}
     for section in config.sections():
-
-        if section not in taskvals:
-            taskvals[section] = dict()
-
+        taskvals[section] = {}
         for option in config.options(section):
-            # Evaluate to the right type()
+            raw = config.get(section, option)
             try:
-                taskvals[section][option] = ast.literal_eval(config.get(section, option))
-            except (ValueError,SyntaxError):
-                err = "Cannot format field '{0}' in config file '{1}'".format(option,filename)
-                err += ", which is currently set to {0}. Ensure strings are in 'quotes'.".format(config.get(section, option))
-                raise ValueError(err)
+                taskvals[section][option] = ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                raise ValueError(
+                    f"Cannot format field '{option}' in config file '{filename}', "
+                    f"which is currently set to {raw!r}. "
+                    "Ensure strings are in 'quotes'."
+                )
 
     return taskvals, config
 
-def has_key(filename, section, key):
-    config_dict,config = parse_config(filename)
-    if has_section(filename, section) and key in config_dict[section]:
-        return True
-    return False
+
+# ---------------------------------------------------------------------------
+# Query helpers  (each re-parses; callers that need performance should call
+# parse_config once and work with the returned dict directly)
+# ---------------------------------------------------------------------------
 
 def has_section(filename, section):
+    taskvals, _ = parse_config(filename)
+    return section in taskvals
 
-    config_dict,config = parse_config(filename)
-    return section in config_dict
+
+def has_key(filename, section, key):
+    taskvals, _ = parse_config(filename)
+    return section in taskvals and key in taskvals[section]
+
 
 def get_key(filename, section, key):
-    config_dict,config = parse_config(filename)
-    if has_key(filename, section, key):
-        return config_dict[section][key]
+    taskvals, _ = parse_config(filename)
+    if section in taskvals and key in taskvals[section]:
+        return taskvals[section][key]
     return ''
 
-def remove_section(filename, section):
 
-    config_dict,config = parse_config(filename)
-    config.remove_section(section)
-    config_file = open(filename, 'w')
-    config.write(config_file)
-    config_file.close()
+# ---------------------------------------------------------------------------
+# Write helpers
+# ---------------------------------------------------------------------------
 
-def overwrite_config(filename, conf_dict={}, conf_sec='', sec_comment=''):
-
-    config_dict,config = parse_config(filename)
+def overwrite_config(filename, conf_dict=None, conf_sec='', sec_comment=''):
+    """Write *conf_dict* into *conf_sec* of *filename*, creating the section if needed."""
+    if conf_dict is None:
+        conf_dict = {}
+    _, config = parse_config(filename)
 
     if conf_sec not in config.sections():
-        logger.debug('Writing [{0}] section in config file "{1}" with:\n{2}.'.format(conf_sec,filename,conf_dict))
+        logger.debug("Writing [%s] in '%s': %s", conf_sec, filename, conf_dict)
         config.add_section(conf_sec)
     else:
-        logger.debug('Overwritting [{0}] section in config file "{1}" with:\n{2}.'.format(conf_sec,filename,conf_dict))
+        logger.debug("Overwriting [%s] in '%s': %s", conf_sec, filename, conf_dict)
 
-    if sec_comment != '':
+    if sec_comment:
         config.set(conf_sec, sec_comment)
 
-    for key in conf_dict.keys():
-        config.set(conf_sec, key, str(conf_dict[key]))
+    for key, value in conf_dict.items():
+        config.set(conf_sec, key, str(value))
 
-    config_file = open(filename, 'w')
-    config.write(config_file)
-    config_file.close()
+    with open(filename, 'w') as fh:
+        config.write(fh)
+
+
+def remove_section(filename, section):
+    _, config = parse_config(filename)
+    config.remove_section(section)
+    with open(filename, 'w') as fh:
+        config.write(fh)
+
+
+# ---------------------------------------------------------------------------
+# Typed value extraction
+# ---------------------------------------------------------------------------
+
+def typed_get(config_dict, section, key, dtype, default=None):
+    """Extract and type-coerce a value from a parsed config dict.
+
+    Parameters
+    ----------
+    config_dict : dict
+        The dict returned by parse_config()[0].
+    section : str
+        Config section name.
+    key : str
+        Key within the section.
+    dtype : type
+        Target type: str, int, float, or bool.
+    default : optional
+        Returned (without coercion) when the key is absent.
+        If omitted and the key is missing, KeyError is raised.
+
+    Notes
+    -----
+    Does NOT mutate config_dict.  Each call is a read-only operation.
+    """
+    if default is not None:
+        val = config_dict.get(section, {}).get(key, default)
+    else:
+        try:
+            val = config_dict[section][key]
+        except KeyError:
+            raise KeyError(
+                f"Missing required key '{key}' in [{section}]"
+            )
+
+    if dtype is str:
+        return str(val).rstrip('/ ')
+    elif dtype is int:
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            raise ValueError(
+                f"[{section}] {key} = {val!r} cannot be converted to int"
+            )
+    elif dtype is float:
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            raise ValueError(
+                f"[{section}] {key} = {val!r} cannot be converted to float"
+            )
+    elif dtype is bool:
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, int):
+            return bool(val)
+        raise ValueError(
+            f"[{section}] {key} = {val!r} is not a bool (True/False)"
+        )
+    else:
+        raise NotImplementedError(
+            f"Unsupported dtype {dtype!r}. Use str, int, float, or bool."
+        )
+
+
+# Backward-compatible alias — prefer typed_get in new code.
+validate_args = typed_get
+
+
+# ---------------------------------------------------------------------------
+# SPW parsing  (reads [crosscal] section for spw/nspw)
+# ---------------------------------------------------------------------------
 
 def parse_spw(filename):
+    """Return (low, high, unit, dirs) parsed from the [crosscal] spw key."""
+    from spw import get_spw_bounds
 
-    config_dict,config = parse_config(filename)
+    config_dict, _ = parse_config(filename)
     spw = config_dict['crosscal']['spw']
-    nspw = config_dict['crosscal']['nspw']
 
     if ',' in spw:
         SPWs = spw.split(',')
-        low,high,unit,dirs = [0]*len(SPWs),[0]*len(SPWs),['']*len(SPWs),['']*len(SPWs)
-        for i,SPW in enumerate(SPWs):
-            from spw import get_spw_bounds
-            low[i],high[i],unit[i],func = get_spw_bounds(SPW)
-            dirs[i] = '{0}~{1}{2}'.format(low[i],high[i],unit[i])
-
-        lowest = min(low)
-        highest = max(high)
-
-        # Uncomment to simply use e.g. '*MHz'
-        # if all([i == unit[0] for i in unit]):
-        #     unit = unit[0]
-        #     dirs = '*{0}'.format(unit)
-
+        low = [0] * len(SPWs)
+        high = [0] * len(SPWs)
+        unit = [''] * len(SPWs)
+        dirs = [''] * len(SPWs)
+        for i, SPW in enumerate(SPWs):
+            low[i], high[i], unit[i], _ = get_spw_bounds(SPW)
+            dirs[i] = '{0}~{1}{2}'.format(low[i], high[i], unit[i])
+        return low, high, unit, dirs
     else:
-        from spw import get_spw_bounds
-        low,high,unit,func = get_spw_bounds(spw)
-        dirs = []
-
-    return low,high,unit,dirs
-
-def validate_args(kwdict, section, key, dtype, default=None):
-    """
-    Validate the dictionary created by parse_config. Make sure
-    that traling characters are removed, and the input types are correct.
-
-    kwdict  The dictionary retured by config_parser.parse_config
-    section The section in the config file to consider
-    key     The specific keyword to validate
-    dtype   The type the keyword should conform to.
-    default If not none, if the keyword doesn't exist, assigns
-            the variable this default value
-
-    Valid types are:
-        str, float, int, bool
-
-    If str, the trailing '/' and trailing whitespaces are removed.
-    An exception is raised if the validation fails.
-    """
-
-    # The input has already been parsed from the config file using
-    # ast.literal_eval, so the dictionary values should have recognisable
-    # python types.
-
-    if default is not None:
-        val = kwdict[section].pop(key, default)
-    else:
-        val = kwdict[section][key]
-
-    if dtype is str:
-        try:
-            val = str(val).rstrip('/ ')
-        except UnicodeError as err: # Pretty much the only error str() can raise
-            raise
-    elif dtype is int:
-        try:
-            val = int(val)
-        except ValueError as err:
-            raise
-    elif dtype is float:
-        try:
-            val = float(val)
-        except ValueError as err:
-            raise
-    elif dtype is bool:
-        try:
-            val = bool(val)
-        except ValueError as err:
-            raise
-    else:
-        raise NotImplementedError('Only str, int, bool, and float are valid types.')
-
-    return val
-
-if __name__ == '__main__':
-    cliargs = parse_args()
-    taskvals,config = parse_config(cliargs.config)
-    print(taskvals)
+        low, high, unit, _ = get_spw_bounds(spw)
+        return low, high, unit, []

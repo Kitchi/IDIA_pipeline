@@ -1,74 +1,40 @@
-"""Abstract base class for facility (cluster) configuration."""
+"""Facility (cluster) configuration dataclass."""
 
-from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Callable
 
 
-class FacilityConfig(ABC):
-    """Encapsulates everything that differs between compute facilities.
+def _noop_validate_account(account, config, parser=None):
+    return account
 
-    Subclass this and implement ``validate_account`` and ``validate_reservation``
-    to add a new facility. Set the class-level attributes to match your cluster.
+
+def _noop_validate_reservation(reservation, args, config, parser=None):
+    pass
+
+
+@dataclass
+class FacilityConfig:
+    """Everything that differs between compute facilities.
+
+    To add a new facility, construct a FacilityConfig instance with your
+    cluster's limits and defaults.  Optionally supply validate_account and
+    validate_reservation callables if your cluster requires it.
     """
 
-    # ------------------------------------------------------------------ #
-    # Resource limits — subclasses must set these                         #
-    # ------------------------------------------------------------------ #
+    # Resource limits (required — every facility must specify these)
     total_nodes_limit: int
     cpus_per_node_limit: int
     mem_per_node_gb_limit: int
     mem_per_node_gb_limit_highmem: int
 
-    # ------------------------------------------------------------------ #
-    # Defaults — subclasses should set sensible values                    #
-    # ------------------------------------------------------------------ #
-    default_container: str
-    default_mpi_wrapper: str
-    default_account: str
-    default_partition: str
-    default_modules: list
+    # Identity and defaults
+    name: str = ''
+    default_container: str = ''
+    default_mpi_wrapper: str = 'mpirun'
+    default_account: str = ''
+    default_partition: str = 'normal'
+    default_modules: list = field(default_factory=list)
 
-    # ------------------------------------------------------------------ #
-    # Validation hooks                                                    #
-    # ------------------------------------------------------------------ #
-
-    @abstractmethod
-    def validate_account(self, account, config, parser=None):
-        """Validate that *account* is usable on this facility.
-
-        Parameters
-        ----------
-        account : str or None
-            The accounting group / project to use.
-        config : str
-            Path to the pipeline config file (for error messages).
-        parser : argparse.ArgumentParser, optional
-            If provided, errors are raised as parser errors.
-
-        Returns
-        -------
-        str
-            The resolved (possibly auto-detected) account string.
-        """
-
-    @abstractmethod
-    def validate_reservation(self, reservation, args, config, parser=None):
-        """Validate that *reservation* exists on this facility.
-
-        Parameters
-        ----------
-        reservation : str
-            The reservation name (empty string means no reservation).
-        args : dict
-            Full argument dictionary (for context).
-        config : str
-            Path to the pipeline config file.
-        parser : argparse.ArgumentParser, optional
-            If provided, errors are raised as parser errors.
-        """
-
-    # ------------------------------------------------------------------ #
-    # Convenience                                                         #
-    # ------------------------------------------------------------------ #
-
-    def __repr__(self):
-        return f'<{self.__class__.__name__}>'
+    # Optional validation hooks
+    validate_account: Callable = field(default=_noop_validate_account, repr=False)
+    validate_reservation: Callable = field(default=_noop_validate_reservation, repr=False)

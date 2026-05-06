@@ -32,9 +32,7 @@ from constants import (
     CONFIG, TMP_CONFIG, MASTER_SCRIPT, SPW_PREFIX,
     FIELDS_CONFIG_KEYS, CROSSCAL_CONFIG_KEYS, SELFCAL_CONFIG_KEYS,
     IMAGING_CONFIG_KEYS, SLURM_CONFIG_STR_KEYS, SLURM_CONFIG_KEYS,
-    CONTAINER, MPI_WRAPPER, PRECAL_SCRIPTS, POSTCAL_SCRIPTS, SCRIPTS,
-    TOTAL_NODES_LIMIT, CPUS_PER_NODE_LIMIT, NTASKS_PER_NODE_LIMIT,
-    MEM_PER_NODE_GB_LIMIT, MEM_PER_NODE_GB_LIMIT_HIGHMEM,
+    PRECAL_SCRIPTS, POSTCAL_SCRIPTS, SCRIPTS,
 )
 # Re-export SPW utilities so callers that do `processMeerKAT.get_spw_bounds` still work
 from spw import get_spw_bounds, linspace, spw_split
@@ -51,14 +49,33 @@ from pipeline import (
     get_config_kwargs, get_slurm_dict, pop_script,
     format_args, default_config,
 )
-from facilities.ilifu import IlifuFacility
+from facilities import get_facility
+from facilities.ilifu import ILIFU
 
 logging.Formatter.converter = gmtime
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="%(asctime)-15s %(levelname)s: %(message)s")
 
-# Active facility — default to Ilifu; overridden via [facility] config section.
-_FACILITY = IlifuFacility()
+# Active facility — default to Ilifu; overridden at -R time via [facility] config section.
+_FACILITY = ILIFU
+
+
+# ---------------------------------------------------------------------------
+# Facility loading
+# ---------------------------------------------------------------------------
+
+def load_facility_from_config(config_path):
+    """Read the [facility] section from config and return a FacilityConfig.
+
+    If the section is absent the current default facility is returned unchanged.
+    Keys other than 'name' are treated as field overrides on the named facility.
+    """
+    if not config_parser.has_section(config_path, 'facility'):
+        return _FACILITY
+
+    fac_dict = dict(config_parser.parse_config(config_path)[0].get('facility', {}))
+    name = str(fac_dict.pop('name', _FACILITY.name)).strip("'\"")
+    return get_facility(name, **fac_dict)
 
 
 # ---------------------------------------------------------------------------
@@ -74,12 +91,15 @@ def raise_error(config, msg, parser=None):
 
 
 # ---------------------------------------------------------------------------
-# Argument validation
+# Argument validation (pure Python — no SLURM calls)
 # ---------------------------------------------------------------------------
 
 def validate_args(args, config, parser=None):
-    """Validate CLI / config arguments; raise appropriate error if invalid."""
+    """Validate CLI / config arguments against the active facility's limits.
 
+    Account and reservation validation (which require SLURM CLI tools) are
+    NOT performed here — they happen in format_args() during the -R step only.
+    """
     if parser is None or args.get('build'):
         if args.get('MS') is None and not args.get('nofields'):
             raise_error(config, "You must input an MS [-M --MS] to build the config file.", parser)
@@ -89,38 +109,38 @@ def validate_args(args, config, parser=None):
     if parser is not None and not args.get('build') and args.get('MS'):
         raise_error(config, "Only input an MS [-M --MS] during [-B --build] step. Otherwise input is ignored.", parser)
 
-    if args['ntasks_per_node'] > NTASKS_PER_NODE_LIMIT:
+    if args['ntasks_per_node'] > _FACILITY.cpus_per_node_limit:
         raise_error(
             config,
             "The number of tasks per node [-t --ntasks-per-node] must not exceed {0}. You input {1}.".format(
-                NTASKS_PER_NODE_LIMIT, args['ntasks_per_node']
+                _FACILITY.cpus_per_node_limit, args['ntasks_per_node']
             ),
             parser,
         )
 
-    if args['nodes'] > TOTAL_NODES_LIMIT:
+    if args['nodes'] > _FACILITY.total_nodes_limit:
         raise_error(
             config,
             "The number of nodes [-N --nodes] must not exceed {0}. You input {1}.".format(
-                TOTAL_NODES_LIMIT, args['nodes']
+                _FACILITY.total_nodes_limit, args['nodes']
             ),
             parser,
         )
 
-    if args['mem'] > MEM_PER_NODE_GB_LIMIT:
+    if args['mem'] > _FACILITY.mem_per_node_gb_limit:
         if args.get('partition') != 'HighMem':
             raise_error(
                 config,
                 "Memory per node [-m --mem] must not exceed {0} GB. You input {1} GB.".format(
-                    MEM_PER_NODE_GB_LIMIT, args['mem']
+                    _FACILITY.mem_per_node_gb_limit, args['mem']
                 ),
                 parser,
             )
-        elif args['mem'] > MEM_PER_NODE_GB_LIMIT_HIGHMEM:
+        elif args['mem'] > _FACILITY.mem_per_node_gb_limit_highmem:
             raise_error(
                 config,
                 "Memory per node [-m --mem] must not exceed {0} GB for HighMem partition. You input {1} GB.".format(
-                    MEM_PER_NODE_GB_LIMIT_HIGHMEM, args['mem']
+                    _FACILITY.mem_per_node_gb_limit_highmem, args['mem']
                 ),
                 parser,
             )
@@ -134,10 +154,6 @@ def validate_args(args, config, parser=None):
             parser,
         )
 
-    # Facility-specific: account and reservation validation
-    args['account'] = _FACILITY.validate_account(args.get('account'), config, parser)
-    _FACILITY.validate_reservation(args.get('reservation', ''), args, config, parser)
-
 
 # ---------------------------------------------------------------------------
 # CLI argument parsing
@@ -147,7 +163,6 @@ def parse_args():
     """Parse and validate command-line arguments."""
 
     def parse_scripts(val):
-        """Convert script list argument entry to (path|bool)."""
         if val.lower() in ('true', 'false'):
             return val.lower() == 'true'
         return check_path(val)
@@ -157,19 +172,22 @@ def parse_args():
         description='Process MeerKAT data via CASA MeasurementSet. Version: {0}'.format(__version__),
     )
 
-    parser.add_argument("-M", "--MS", metavar="path", required=False, type=str, help="Path to MeasurementSet.")
+    parser.add_argument("-M", "--MS", metavar="path", required=False, type=str,
+                        help="Path to MeasurementSet.")
     parser.add_argument("-C", "--config", metavar="path", default=CONFIG, required=False, type=str,
                         help="Relative (not absolute) path to config file.")
     parser.add_argument("-N", "--nodes", metavar="num", required=False, type=int, default=1,
-                        help="Use this number of nodes [default: 1; max: {0}].".format(TOTAL_NODES_LIMIT))
+                        help="Use this number of nodes [default: 1; max: {0}].".format(_FACILITY.total_nodes_limit))
     parser.add_argument("-t", "--ntasks-per-node", metavar="num", required=False, type=int, default=8,
-                        help="Use this number of tasks (per node) [default: 8; max: {0}].".format(NTASKS_PER_NODE_LIMIT))
+                        help="Use this number of tasks (per node) [default: 8; max: {0}].".format(_FACILITY.cpus_per_node_limit))
     parser.add_argument("-D", "--plane", metavar="num", required=False, type=int, default=1,
                         help="Distribute tasks of this block size before moving onto next node [default: 1].")
-    parser.add_argument("-m", "--mem", metavar="num", required=False, type=int, default=MEM_PER_NODE_GB_LIMIT,
-                        help="Use this many GB of memory per node [default: {0}].".format(MEM_PER_NODE_GB_LIMIT))
-    parser.add_argument("-p", "--partition", metavar="name", required=False, type=str, default="Main",
-                        help="SLURM partition to use [default: 'Main'].")
+    parser.add_argument("-m", "--mem", metavar="num", required=False, type=int,
+                        default=_FACILITY.mem_per_node_gb_limit,
+                        help="Use this many GB of memory per node [default: {0}].".format(_FACILITY.mem_per_node_gb_limit))
+    parser.add_argument("-p", "--partition", metavar="name", required=False, type=str,
+                        default=_FACILITY.default_partition,
+                        help="SLURM partition to use [default: '{0}'].".format(_FACILITY.default_partition))
     parser.add_argument("-T", "--time", metavar="time", required=False, type=str, default="12:00:00",
                         help="Time limit for all jobs [default: '12:00:00'].")
     parser.add_argument("-S", "--scripts", action='append', nargs=3,
@@ -185,11 +203,14 @@ def parse_args():
                         type=parse_scripts, default=POSTCAL_SCRIPTS,
                         help="Scripts run after calibration (nspw > 1 only).")
     parser.add_argument("--modules", nargs='*', metavar='module', required=False,
-                        default=['openmpi/4.0.3'], help="Load these modules within each sbatch script.")
-    parser.add_argument("-w", "--mpi_wrapper", metavar="path", required=False, type=str, default=MPI_WRAPPER,
-                        help="MPI wrapper for threadsafe scripts [default: '{0}'].".format(MPI_WRAPPER))
-    parser.add_argument("-c", "--container", metavar="path", required=False, type=str, default=CONTAINER,
-                        help="Singularity container [default: '{0}'].".format(CONTAINER))
+                        default=_FACILITY.default_modules,
+                        help="Load these modules within each sbatch script.")
+    parser.add_argument("-w", "--mpi_wrapper", metavar="path", required=False, type=str,
+                        default=_FACILITY.default_mpi_wrapper,
+                        help="MPI wrapper for threadsafe scripts [default: '{0}'].".format(_FACILITY.default_mpi_wrapper))
+    parser.add_argument("-c", "--container", metavar="path", required=False, type=str,
+                        default=_FACILITY.default_container,
+                        help="Singularity container [default: '{0}'].".format(_FACILITY.default_container))
     parser.add_argument("-n", "--name", metavar="unique", required=False, type=str, default='',
                         help="Unique run name prefix for all job names.")
     parser.add_argument("-d", "--dependencies", metavar="list", required=False, type=str, default='',
@@ -257,13 +278,11 @@ def parse_args():
 # ---------------------------------------------------------------------------
 
 def setup_logger(config, verbose=False):
-    """Configure logging level from config or verbose flag."""
     if not verbose:
         config_dict = config_parser.parse_config(config)[0]
         if 'slurm' in config_dict and 'verbose' in config_dict['slurm']:
             verbose = config_dict['slurm']['verbose']
-    loglevel = logging.DEBUG if verbose else logging.INFO
-    logger.setLevel(loglevel)
+    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +300,8 @@ def main():
     if args.build:
         default_config(vars(args))
     if args.run:
+        global _FACILITY
+        _FACILITY = load_facility_from_config(args.config)
         kwargs = format_args(args.config, args.submit, args.quiet, args.dependencies, args.justrun)
         write_jobs(args.config, **kwargs)
 

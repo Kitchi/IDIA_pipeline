@@ -62,6 +62,9 @@ badfreqranges = ['933~960MHz']
 [run]
 continue = True
 dopol = False
+
+[facility]
+name = 'ilifu'
 """
 
 MULTIBAND_CONFIG = """\
@@ -114,6 +117,9 @@ badfreqranges = ['933~960MHz']
 [run]
 continue = True
 dopol = False
+
+[facility]
+name = 'ilifu'
 """
 
 
