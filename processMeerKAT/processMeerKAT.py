@@ -33,51 +33,26 @@ from copy import deepcopy
 import logging
 from time import gmtime
 from datetime import datetime
+
+from constants import (
+    THIS_PROG, SCRIPT_DIR, LOG_DIR, CALIB_SCRIPTS_DIR, AUX_SCRIPTS_DIR,
+    SELFCAL_SCRIPTS_DIR, CONFIG, TMP_CONFIG, MASTER_SCRIPT, SPW_PREFIX,
+    FIELDS_CONFIG_KEYS, CROSSCAL_CONFIG_KEYS, SELFCAL_CONFIG_KEYS,
+    IMAGING_CONFIG_KEYS, SLURM_CONFIG_STR_KEYS, SLURM_CONFIG_KEYS,
+    CONTAINER, MPI_WRAPPER, PRECAL_SCRIPTS, POSTCAL_SCRIPTS, SCRIPTS,
+    TOTAL_NODES_LIMIT, CPUS_PER_NODE_LIMIT, NTASKS_PER_NODE_LIMIT,
+    MEM_PER_NODE_GB_LIMIT, MEM_PER_NODE_GB_LIMIT_HIGHMEM,
+)
+from spw import get_spw_bounds, linspace, spw_split
+from facilities import get_facility
+from facilities.ilifu import IlifuFacility
+
 logging.Formatter.converter = gmtime
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="%(asctime)-15s %(levelname)s: %(message)s")
 
-#Set global limits for current ilifu cluster configuration
-TOTAL_NODES_LIMIT = 79
-CPUS_PER_NODE_LIMIT = 32
-NTASKS_PER_NODE_LIMIT = CPUS_PER_NODE_LIMIT
-MEM_PER_NODE_GB_LIMIT = 232 #237568 MB
-MEM_PER_NODE_GB_LIMIT_HIGHMEM = 480 #491520 MB
-
-#Set global values for paths and file names
-THIS_PROG = __file__
-SCRIPT_DIR = os.path.dirname(THIS_PROG)
-LOG_DIR = 'logs'
-CALIB_SCRIPTS_DIR = 'crosscal_scripts'
-AUX_SCRIPTS_DIR = 'aux_scripts'
-SELFCAL_SCRIPTS_DIR = 'selfcal_scripts'
-CONFIG = 'default_config.txt'
-TMP_CONFIG = '.config.tmp'
-MASTER_SCRIPT = 'submit_pipeline.sh'
-SPW_PREFIX = '*:'
-
-#Set global values for field, crosscal and SLURM arguments copied to config file, and some of their default values
-FIELDS_CONFIG_KEYS = ['fluxfield','bpassfield','phasecalfield','targetfields','extrafields']
-CROSSCAL_CONFIG_KEYS = ['minbaselines','chanbin','width','timeavg','createmms','keepmms','spw','nspw','calcrefant','refant','standard','badants','badfreqranges']
-SELFCAL_CONFIG_KEYS = ['nloops','loop','cell','robust','imsize','wprojplanes','niter','threshold','uvrange','nterms','gridder','deconvolver','solint','calmode','discard_nloops','gaintype','outlier_threshold','flag','outlier_radius']
-IMAGING_CONFIG_KEYS = ['cell', 'robust', 'imsize', 'wprojplanes', 'niter', 'threshold', 'multiscale', 'nterms', 'gridder', 'deconvolver', 'restoringbeam', 'stokes', 'mask', 'rmsmap','outlierfile', 'pbthreshold', 'pbband']
-SLURM_CONFIG_STR_KEYS = ['container','mpi_wrapper','partition','time','name','dependencies','exclude','account','reservation']
-SLURM_CONFIG_KEYS = ['nodes','ntasks_per_node','mem','plane','submit','precal_scripts','postcal_scripts','scripts','verbose','modules'] + SLURM_CONFIG_STR_KEYS
-CONTAINER = '/idia/software/containers/casa-6.5.0-modular.sif'
-MPI_WRAPPER = 'mpirun'
-PRECAL_SCRIPTS = [('calc_refant.py',False,''),('partition.py',True,'')] #Scripts run before calibration at top level directory when nspw > 1
-POSTCAL_SCRIPTS = [('concat.py',False,''),('plotcal_spw.py', False, ''),('selfcal_part1.py',True,''),('selfcal_part2.py',False,''),('science_image.py', True, '')] #Scripts run after calibration at top level directory when nspw > 1
-SCRIPTS = [ ('validate_input.py',False,''),
-            ('flag_round_1.py',True,''),
-            ('calc_refant.py',False,''),
-            ('setjy.py',True,''),
-            ('xx_yy_solve.py',False,''),
-            ('xx_yy_apply.py',True,''),
-            ('flag_round_2.py',True,''),
-            ('xx_yy_solve.py',False,''),
-            ('xx_yy_apply.py',True,''),
-            ('split.py',True,''),
-            ('quick_tclean.py',True,'')]
+# Active facility — default to Ilifu; overridden by config [facility] section.
+_FACILITY = IlifuFacility()
 
 
 def check_path(path,update=False):
@@ -305,74 +280,9 @@ def validate_args(args,config,parser=None):
         msg = "The value of [-P --plane] cannot be greater than the tasks per node [-t --ntasks-per-node] ({0}). You input {1}.".format(args['ntasks_per_node'],args['plane'])
         raise_error(config, msg, parser)
 
-    # 1. Check if we are on a Slurm node
-    current_hostname = platform.node()
-    is_slurm_node = any(x in current_hostname for x in ['slurm-login', 'slwrk', 'compute'])
-
-    if is_slurm_node:
-        # Check if we are already inside an active Slurm allocation, If SLURM_JOB_ID exists, we skip sacctmgr because the account was already validated by the scheduler when the job was submitted.
-        if os.environ.get('SLURM_JOB_ID'):
-            print(f"INFO: Running inside Slurm Job {os.environ.get('SLURM_JOB_ID')}. Skipping account validation.")
-            return # Exit the validation function early and continue with the script
-        user_name = os.environ.get('USER')
-        def_cmd = f"sacctmgr show user {user_name} --noheader format=DefaultAccount%30"
-        default_acc = os.popen(def_cmd).read().strip()
-
-        # 2. Handle missing or 'None' input, This ensures that if the user forgets -A, it defaults to their default group
-        user_provided_account = args.get('account')
-        if not user_provided_account or str(user_provided_account).lower() == 'none':
-            # Fetch all accounts to provide context to the user
-            list_cmd = f"sacctmgr show user {user_name} --noheader -s format=account%30"
-            available = os.popen(list_cmd).read().split()
-            
-            if default_acc:
-                msg = f"No account specified. Authorized groups: {', '.join(available)}."
-                print(f"INFO: {msg}")
-                args['account'] = default_acc
-            else:
-                msg = "No Slurm account provided and no default detected for your user."
-                if available:
-                    msg += f" Please specify one of your authorized groups: {', '.join(available)}."
-                raise_error(config, msg, parser)
-
-        # 3. Direct Validation
-        # Instead of fetching a list, we ask Slurm: "Is this specific account valid for this user?"
-        check_cmd = f"sacctmgr show associations user={user_name} account={args['account']} --noheader"
-        is_valid = os.popen(check_cmd).read().strip()
-
-        if not is_valid:
-            # Only fetch the full list if validation fails (to provide a helpful error)
-            list_cmd = f"sacctmgr show user {user_name} --noheader -s format=account%30"
-            available = os.popen(list_cmd).read().split()
-            msg = f"Accounting group '{args['account']}' is not recognized for user {user_name}."
-            if available:
-                msg += f" Your authorized groups are: {', '.join(available)}."
-            if default_acc:
-                msg += f" Your default is '{default_acc}'."        
-            raise_error(config, msg, parser)
-        
-        # Success!
-        print(f"INFO: Using Slurm account '{args['account']}'")
-
-    else:
-        # If not on a slurm node, we just warn instead of crashing.
-        # This allows users to generate configs on their laptops.
-        print(f"WARNING: Not on a Slurm node. Skipping validation for account '{args['account']}'.")
-
-    if args['reservation'] != '':
-        from platform import node
-        if 'slurm-login' in node() or 'slwrk' in node() or 'compute' in node():
-            reservations=os.popen("scontrol show reservation | grep ReservationName | awk '{print $1}' | cut -d = -f2").read()[:-1].split('\n')
-            if args['reservation'] not in reservations:
-                msg = "Reservation '{0}' not recognised.".format(args['reservation'])
-                if reservations == ['']:
-                    msg += ' There are no active reservations.'
-                else:
-                     msg += ' Please select one of the following reservations, if applicable: {0}.'.format(reservations)
-                raise_error(config, msg, parser)
-        else:
-            msg = "Reservation '{0}' not recognised. You're not using a SLURM node, so cannot query your accounts.".format(args['reservation'])
-            raise_error(config, msg, parser)
+    # Delegate account and reservation validation to the active facility
+    args['account'] = _FACILITY.validate_account(args.get('account'), config, parser)
+    _FACILITY.validate_reservation(args.get('reservation', ''), args, config, parser)
 
 def write_command(script,args,name='job',mpi_wrapper=MPI_WRAPPER,container=CONTAINER,casa_script=False,logfile=True,plot=False,SPWs='',nspw=1):
 
@@ -1360,158 +1270,6 @@ def format_args(config,submit,quiet,dependencies,justrun):
         logger.warning("Changing [slurm] section in your config will have no effect unless you [-R --run] again.")
 
     return kwargs
-
-def linspace(lower,upper,length):
-
-    """Basically np.linspace, but without needing to import numpy..."""
-
-    return [lower + x*(upper-lower)/float(length-1) for x in range(length)]
-
-def get_spw_bounds(spw):
-
-    """Get upper and lower bounds of spw.
-
-    Arguments:
-    ----------
-    spw : str
-        CASA spectral window in MHz.
-
-    Returns:
-    --------
-    low : float
-        Lower bound of spw.
-    high : float
-        Higher bound of spw.
-    unit : str
-        Unit of spw.
-    func : function
-        Function to apply to spectral window (i.e. int for SPW channel range, otherwise float)."""
-
-    bounds = spw.split(':')[-1].split('~')
-    if ',' not in spw and ':' in spw and '~' in spw and len(bounds) == 2 and bounds[1] != '':
-        high,unit=re.search(r'(\d+\.*\d*)(\w*)',bounds[1]).groups()
-        func = int if unit == '' or '.' not in bounds[0] else float
-        low = func(bounds[0])
-        func = int if unit == '' or '.' not in high else float
-        high = func(high)
-
-        if unit != 'MHz':
-            logger.warning('Please use SPW unit "MHz", to ensure the best performance (e.g. not processing entirely flagged frequency ranges).')
-
-    else:
-        return None
-
-    return low,high,unit,func
-
-def spw_split(spw,nspw,config,mem,badfreqranges,MS,partition,createmms=True,remove=True,fields={}):
-
-    """Split into N SPWs, placing an instance of the pipeline into N directories, each with 1 Nth of the bandwidth.
-
-    Arguments:
-    ----------
-    spw : str
-        spw parameter from config.
-    nspw : int
-        Number of spectral windows to split into.
-    config : str
-        Path to config file.
-    mem : int
-        Memory in GB to use per instance.
-    badfreqranges : list
-        List of bad frequency ranges in MHz.
-    MS : str
-        Path to CASA MeasurementSet.
-    partition : bool
-        Does this run include the partition step?
-    createmms : bool
-        Create MMS as output?
-    remove : bool, optional
-        Remove SPWs completely encompassed by bad frequency ranges?
-    fields : dict, optional
-        Field names, so we can do some visname renaming hackery!
-
-    Returns:
-    --------
-    nspw : int
-        New nspw, potentially a lower value than input (if any SPWs completely encompassed by badfreqranges)."""
-
-    if get_spw_bounds(spw) != None:
-        #Write nspw frequency ranges
-        low,high,unit,func = get_spw_bounds(spw)
-        interval=func((high-low)/float(nspw))
-        lo=linspace(low,high-interval,nspw)
-        hi=linspace(low+interval,high,nspw)
-        SPWs=[]
-
-        #Remove SPWs entirely encompassed by bad frequency ranges (only for MHz unit)
-        for i in range(len(lo)):
-            SPWs.append('{0}{1}~{2}{3}'.format(SPW_PREFIX, func(lo[i]),func(hi[i]),unit))
-
-    elif ',' in spw:
-        SPWs = spw.split(',')
-        unit = get_spw_bounds(SPWs[0])[2]
-        if len(SPWs) != nspw:
-            logger.error("nspw ({0}) not equal to number of separate SPWs ({1} in '{2}') from '{3}'. Setting to nspw={1}.".format(nspw,len(SPWs),spw,config))
-            nspw = len(SPWs)
-    else:
-        logger.error("Can't split into {0} SPWs using SPW format '{1}'. Using nspw=1 in '{2}'.".format(nspw,spw,config))
-        return 1
-
-    #Remove any SPWs completely encompassed by bad frequency ranges
-    i=0
-    while i < nspw:
-        badfreq = False
-        low,high = get_spw_bounds(SPWs[i])[0:2]
-        if unit == 'MHz' and remove:
-            for freq in badfreqranges:
-                bad_low,bad_high = get_spw_bounds('{0}{1}'.format(SPW_PREFIX,freq))[0:2]
-                if low >= bad_low and high <= bad_high:
-                    logger.info("Won't process spw '{0}{1}~{2}{3}', since it's completely encompassed by bad frequency range '{3}'.".format(SPW_PREFIX,low,high,unit,freq))
-                    badfreq = True
-                    break
-        if badfreq:
-            SPWs.pop(i)
-            i -= 1
-            nspw -= 1
-        i += 1
-
-    #Overwrite config with new SPWs
-    config_parser.overwrite_config(config, conf_dict={'spw' : "'{0}'".format(','.join(SPWs))}, conf_sec='crosscal')
-
-    #Create each spw as directory and place config in there
-    logger.info("Making {0} directories for SPWs ({1}) and copying '{2}' to each of them.".format(nspw,SPWs,config))
-    for spw in SPWs:
-        spw_config = '{0}/{1}'.format(spw.replace(SPW_PREFIX,''),config)
-        if not os.path.exists(spw.replace(SPW_PREFIX,'')):
-            os.mkdir(spw.replace(SPW_PREFIX,''))
-        copyfile(config, spw_config)
-        config_parser.overwrite_config(spw_config, conf_dict={'spw' : "'{0}'".format(spw)}, conf_sec='crosscal')
-        config_parser.overwrite_config(spw_config, conf_dict={'nspw' : 1}, conf_sec='crosscal')
-        config_parser.overwrite_config(spw_config, conf_dict={'mem' : mem}, conf_sec='slurm')
-        config_parser.overwrite_config(spw_config, conf_dict={'calcrefant' : False}, conf_sec='crosscal')
-        config_parser.overwrite_config(spw_config, conf_dict={'precal_scripts' : []}, conf_sec='slurm')
-        config_parser.overwrite_config(spw_config, conf_dict={'postcal_scripts' : []}, conf_sec='slurm')
-        #Look 1 directory up when using relative path
-        if MS[0] != '/':
-            config_parser.overwrite_config(spw_config, conf_dict={'vis' : "'../{0}'".format(MS)}, conf_sec='data')
-        if not partition:
-            basename, ext = os.path.splitext(MS.rstrip('/ '))
-            filebase = os.path.split(basename)[1]
-            extn = 'mms' if createmms else 'ms'
-
-            #Hack to rename vis if setting as specific field (e.g. as target field when running selfcal)
-            prefix,suffix = os.path.splitext(filebase)
-            if suffix[1:] != '' and suffix[1:] in fields.values():
-                extn = '{0}.{1}'.format(suffix[1:],extn)
-                filebase = prefix
-
-            vis = '{0}.{1}.{2}'.format(filebase,spw.replace(SPW_PREFIX,''),extn)
-            logger.warning("Since script with 'partition' in its name isn't present in '{0}', assuming partition has already been done, and setting vis='{1}' in '{2}'. If '{1}' doesn't exist, please update '{2}', as the pipeline will not launch successfully.".format(config,vis,spw_config))
-            orig_vis = config_parser.get_key(spw_config, 'data', 'vis')
-            config_parser.overwrite_config(spw_config, conf_dict={'orig_vis' : "'{0}'".format(orig_vis)}, conf_sec='run', sec_comment='# Internal variables for pipeline execution')
-            config_parser.overwrite_config(spw_config, conf_dict={'vis' : "'{0}'".format(vis)}, conf_sec='data')
-
-    return nspw
 
 def get_config_kwargs(config,section,expected_keys):
 

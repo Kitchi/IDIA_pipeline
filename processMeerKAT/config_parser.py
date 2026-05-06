@@ -6,14 +6,17 @@
 import argparse
 import configparser
 import ast
-import processMeerKAT
+import logging
+from constants import CONFIG, LOG_DIR
+
+logger = logging.getLogger(__name__)
 
 def parse_args():
     """
     Parse the command line arguments
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('-C','--config', default=processMeerKAT.CONFIG, required=False, help='Name of the input config file')
+    parser.add_argument('-C','--config', default=CONFIG, required=False, help='Name of the input config file')
 
     args, __ = parser.parse_known_args()
 
@@ -26,7 +29,7 @@ def parse_config(filename):
     should represent task parameters and values respectively.
     """
 
-    config = configparser.SafeConfigParser(allow_no_value=True)
+    config = configparser.ConfigParser(allow_no_value=True)
     config.read(filename)
 
     # Build a nested dictionary with tasknames at the top level
@@ -78,10 +81,10 @@ def overwrite_config(filename, conf_dict={}, conf_sec='', sec_comment=''):
     config_dict,config = parse_config(filename)
 
     if conf_sec not in config.sections():
-        processMeerKAT.logger.debug('Writing [{0}] section in config file "{1}" with:\n{2}.'.format(conf_sec,filename,conf_dict))
+        logger.debug('Writing [{0}] section in config file "{1}" with:\n{2}.'.format(conf_sec,filename,conf_dict))
         config.add_section(conf_sec)
     else:
-        processMeerKAT.logger.debug('Overwritting [{0}] section in config file "{1}" with:\n{2}.'.format(conf_sec,filename,conf_dict))
+        logger.debug('Overwritting [{0}] section in config file "{1}" with:\n{2}.'.format(conf_sec,filename,conf_dict))
 
     if sec_comment != '':
         config.set(conf_sec, sec_comment)
@@ -103,7 +106,8 @@ def parse_spw(filename):
         SPWs = spw.split(',')
         low,high,unit,dirs = [0]*len(SPWs),[0]*len(SPWs),['']*len(SPWs),['']*len(SPWs)
         for i,SPW in enumerate(SPWs):
-            low[i],high[i],unit[i],func = processMeerKAT.get_spw_bounds(SPW)
+            from spw import get_spw_bounds
+            low[i],high[i],unit[i],func = get_spw_bounds(SPW)
             dirs[i] = '{0}~{1}{2}'.format(low[i],high[i],unit[i])
 
         lowest = min(low)
@@ -115,7 +119,8 @@ def parse_spw(filename):
         #     dirs = '*{0}'.format(unit)
 
     else:
-        low,high,unit,func = processMeerKAT.get_spw_bounds(spw)
+        from spw import get_spw_bounds
+        low,high,unit,func = get_spw_bounds(spw)
         dirs = []
 
     return low,high,unit,dirs
