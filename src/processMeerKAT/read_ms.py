@@ -6,8 +6,22 @@ import sys
 import os
 import numpy as np
 
-import processMeerKAT
-import config_parser
+# Support both CASA-standalone invocation (flat imports, when this file is
+# executed directly inside src/processMeerKAT/ via srun under CASA) and
+# package-style imports (relative, when imported as processMeerKAT.read_ms by
+# the test suite or other library code). When neither relative nor flat works
+# — typically because we're invoked as a standalone script with `python -P`
+# (used in container-less local runs to clean sys.path) — reach into the
+# installed package by qualified name.
+try:
+    from . import processMeerKAT
+    from . import config_parser
+except ImportError:
+    try:
+        import processMeerKAT
+        import config_parser
+    except ImportError:
+        from processMeerKAT import processMeerKAT, config_parser
 
 from casatasks import *
 from casatools import msmetadata,table,measures,quanta
@@ -233,6 +247,85 @@ def check_scans(MS,nodes,tasks,dopol):
     threads = {'nodes' : nodes, 'ntasks_per_node' : tasks}
     return threads
 
+def auto_detect_spw(msmd):
+
+    """Build the SPW string and count from the MS's native SPECTRAL_WINDOW structure.
+
+    Honors whatever SPW boundaries the input MS already has rather than imposing
+    a linspace split across a user-supplied frequency range. Each detected SPW
+    is emitted as ``<id>:<low>~<high>MHz`` so that downstream ``mstransform``
+    selects the exact native SPW (not a freq-overlap from any SPW).
+
+    Arguments:
+    ----------
+    msmd : casatools.msmetadata
+        An already-opened msmetadata handle on the input MS.
+
+    Returns:
+    --------
+    spw_string : str
+        Comma-separated SPW selection string, e.g. ``"0:880~933MHz,1:960~1010MHz"``.
+    nspw : int
+        Number of detected SPWs (== msmd.nspw())."""
+
+    nspw = msmd.nspw()
+    parts = []
+    for i in range(nspw):
+        freqs_hz = msmd.chanfreqs(i)
+        low_mhz = float(freqs_hz[0]) / 1e6
+        high_mhz = float(freqs_hz[-1]) / 1e6
+        if low_mhz > high_mhz:
+            low_mhz, high_mhz = high_mhz, low_mhz
+        parts.append('{0}:{1:.3f}~{2:.3f}MHz'.format(i, low_mhz, high_mhz))
+    return ','.join(parts), nspw
+
+def resolve_spw_for_build(msmd, requested_nspw):
+
+    """Decide what SPW string and nspw to write to the config during -B.
+
+    Policy:
+      - If the MS has multiple native SPWs, honor that structure exactly: write
+        one entry per native SPW and force ``nspw == msmd.nspw()``. The user's
+        requested_nspw is ignored (with a warning if it differed).
+      - If the MS has a single native SPW, expose only its frequency bounds in
+        the SPW string and preserve the user's requested_nspw so that
+        downstream ``spw_split`` can subdivide it for parallelism. This is the
+        common L-band case: one wide SPW that we want to break into N chunks.
+
+    Arguments:
+    ----------
+    msmd : casatools.msmetadata
+        Open msmetadata handle.
+    requested_nspw : int
+        The nspw value already in the config (typically the user's choice).
+
+    Returns:
+    --------
+    spw_string : str
+        Comma-separated SPW selection, e.g. ``"0:880~933MHz,1:960~1010MHz"`` or
+        ``"0:880~1680MHz"``.
+    nspw : int
+        The nspw value to write to ``[crosscal] nspw``."""
+
+    native_spw, native_nspw = auto_detect_spw(msmd)
+
+    if native_nspw > 1:
+        if requested_nspw and requested_nspw != native_nspw:
+            logger.warning(
+                "Input MS has {0} native SPWs; overriding configured nspw={1} to match.".format(
+                    native_nspw, requested_nspw
+                )
+            )
+        return native_spw, native_nspw
+
+    # Single native SPW: keep the user's nspw so spw_split can subdivide.
+    if requested_nspw and requested_nspw > 1:
+        logger.info(
+            "Input MS has a single native SPW; will subdivide into {0} chunks "
+            "for parallelism (set nspw=1 in config to disable).".format(requested_nspw)
+        )
+    return native_spw, requested_nspw or 1
+
 def check_spw(config,msmd):
 
     """Check SPW bounds are within the SPW bounds of the MS. If not, output a warning and update the SPW.
@@ -408,12 +501,19 @@ def main():
 
     check_refant(args.MS, refant, args.config, warn=True)
     threads = check_scans(args.MS,args.nodes,args.ntasks_per_node,dopol)
-    SPW = check_spw(args.config,msmd)
+
+    existing_nspw = config_parser.parse_config(args.config)[0].get('crosscal', {}).get('nspw', 1)
+    try:
+        existing_nspw = int(existing_nspw)
+    except (TypeError, ValueError):
+        existing_nspw = 1
+
+    SPW, write_nspw = resolve_spw_for_build(msmd, existing_nspw)
 
     config_parser.overwrite_config(args.config, conf_dict={'dopol' : dopol}, conf_sec='run', sec_comment='# Internal variables for pipeline execution')
     config_parser.overwrite_config(args.config, conf_dict=threads, conf_sec='slurm')
     config_parser.overwrite_config(args.config, conf_dict=fields, conf_sec='fields')
-    config_parser.overwrite_config(args.config, conf_dict={'spw' : "'{0}'".format(SPW)}, conf_sec='crosscal')
+    config_parser.overwrite_config(args.config, conf_dict={'spw' : "'{0}'".format(SPW), 'nspw': write_nspw}, conf_sec='crosscal')
 
     msmd.done()
 
