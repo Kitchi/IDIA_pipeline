@@ -36,6 +36,7 @@ verbose = False
 precal_scripts = [('calc_refant.py', False, ''), ('partition.py', True, '')]
 postcal_scripts = [('concat.py', False, ''), ('plotcal_spw.py', False, '')]
 scripts = [('validate_input.py', False, ''), ('flag_round_1.py', True, ''), ('split.py', True, '')]
+target_scripts = [('validate_input.py', False, ''), ('flag_round_1.py', True, '')]
 
 [crosscal]
 minbaselines = 4

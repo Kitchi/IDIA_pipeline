@@ -32,7 +32,8 @@ from .constants import (
     CONFIG, TMP_CONFIG, MASTER_SCRIPT, SPW_PREFIX,
     FIELDS_CONFIG_KEYS, CROSSCAL_CONFIG_KEYS, SELFCAL_CONFIG_KEYS,
     IMAGING_CONFIG_KEYS, SLURM_CONFIG_STR_KEYS, SLURM_CONFIG_KEYS,
-    PRECAL_SCRIPTS, POSTCAL_SCRIPTS, SCRIPTS,
+    PRECAL_SCRIPTS, POSTCAL_SCRIPTS, SCRIPTS, TARGET_SCRIPTS,
+    TOTAL_NODES_LIMIT, NTASKS_PER_NODE_LIMIT, CPUS_PER_NODE_LIMIT,
 )
 from .spw import get_spw_bounds, linspace, spw_split
 from .slurm_jobs import (
@@ -199,6 +200,10 @@ def parse_args():
                         metavar=('script', 'threadsafe', 'container'), required=False,
                         type=parse_scripts, default=POSTCAL_SCRIPTS,
                         help="Scripts run after calibration (nspw > 1 only).")
+    parser.add_argument("-g", "--target_scripts", action='append', nargs=3,
+                        metavar=('script', 'threadsafe', 'container'), required=False,
+                        type=parse_scripts, default=TARGET_SCRIPTS,
+                        help="Scripts run on the monolithic target MMS in parallel with per-SPW calibrator solves (nspw > 1 only).")
     parser.add_argument("--modules", nargs='*', metavar='module', required=False,
                         default=_FACILITY.default_modules,
                         help="Load these modules within each sbatch script.")
@@ -265,6 +270,8 @@ def parse_args():
         [args.precal_scripts.pop(0) for _ in range(len(PRECAL_SCRIPTS))]
     if len(args.postcal_scripts) > len(POSTCAL_SCRIPTS):
         [args.postcal_scripts.pop(0) for _ in range(len(POSTCAL_SCRIPTS))]
+    if len(args.target_scripts) > len(TARGET_SCRIPTS):
+        [args.target_scripts.pop(0) for _ in range(len(TARGET_SCRIPTS))]
 
     validate_args(vars(args), args.config, parser=parser)
     return args

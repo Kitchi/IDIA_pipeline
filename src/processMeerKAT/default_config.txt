@@ -25,19 +25,18 @@ account = 'b03-idia-ag'
 reservation = ''
 modules = ['openmpi/4.0.3']
 verbose = False
-precal_scripts = [('calc_refant.py',False,''), ('partition.py',True,'')]
-postcal_scripts = [('concat.py',False,''), ('plotcal_spw.py', False, ''), ('selfcal_part1.py',True,''), ('selfcal_part2.py',False,''), ('science_image.py', True, '')]
+precal_scripts = [('partition.py',True,''), ('partition_target.py',True,'')]
+postcal_scripts = [('concat_caltables.py',False,''), ('apply_to_target.py',True,''), ('selfcal_part1.py',True,''), ('selfcal_part2.py',False,''), ('science_image.py', True, '')]
 scripts = [ ('validate_input.py',False,''),
             ('flag_round_1.py',True,''),
-            ('calc_refant.py',False,''),
             ('setjy.py',True,''),
             ('xx_yy_solve.py',False,''),
             ('xx_yy_apply.py',True,''),
             ('flag_round_2.py',True,''),
             ('xx_yy_solve.py',False,''),
-            ('xx_yy_apply.py',True,''),
-            ('split.py',True,''),
-            ('quick_tclean.py',True,'')]
+            ('xx_yy_apply.py',True,'')]
+target_scripts = [('validate_input.py',False,''),
+                  ('flag_round_1.py',True,'')]
 
 [crosscal]
 minbaselines = 4                  # Minimum number of baselines to use while calibrating

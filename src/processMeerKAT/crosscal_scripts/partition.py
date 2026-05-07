@@ -2,16 +2,33 @@
 #See processMeerKAT.py for license details.
 
 """
-Runs partition on the input MS
+Partition the input MS into per-SPW MMSes containing only calibrator fields.
+
+The target field is intentionally excluded — it is split off separately by
+``partition_target.py`` (single monolithic MMS spanning all SPWs) so that the
+calibrator solve chain and the target flag chain can run in parallel branches.
 """
 import sys
 import os
 
-import config_parser
-from config_parser import validate_args as va
-import read_ms
-import processMeerKAT
-import bookkeeping
+# Support relative (package), flat (CASA-standalone, CWD = package dir), and
+# qualified (`python -P` standalone — script dir not on sys.path) import paths.
+try:
+    from .. import config_parser
+    from ..config_parser import validate_args as va
+    from .. import read_ms
+    from .. import processMeerKAT
+    from .. import bookkeeping
+except ImportError:
+    try:
+        import config_parser
+        from config_parser import validate_args as va
+        import read_ms
+        import processMeerKAT
+        import bookkeeping
+    except ImportError:
+        from processMeerKAT import config_parser, read_ms, processMeerKAT, bookkeeping
+        from processMeerKAT.config_parser import validate_args as va
 
 from casatasks import *
 logfile=casalog.logfile()
@@ -19,7 +36,30 @@ from casatools import msmetadata
 import casampi
 msmd = msmetadata()
 
-def do_partition(visname, spw, preavg, CPUs, include_crosshand, createmms, spwname):
+def _strip_quotes(value):
+    if isinstance(value, str):
+        return value.strip().strip("'").strip('"')
+    return value
+
+def cal_field_selection(fields_section):
+    """Build a comma-separated calibrator-field selection from the [fields] config dict.
+
+    Joins bpassfield + fluxfield + phasecalfield + extrafields, deduplicating
+    while preserving order. The target field is intentionally excluded.
+    """
+    keys = ['bpassfield', 'fluxfield', 'phasecalfield', 'extrafields']
+    seen = []
+    for key in keys:
+        raw = _strip_quotes(fields_section.get(key, ''))
+        if not raw:
+            continue
+        for entry in str(raw).split(','):
+            entry = entry.strip()
+            if entry and entry not in seen:
+                seen.append(entry)
+    return ','.join(seen)
+
+def do_partition(visname, spw, preavg, CPUs, include_crosshand, createmms, spwname, field=''):
     # Get the .ms bit of the filename, case independent
     basename, ext = os.path.splitext(visname)
     filebase = os.path.split(basename)[1]
@@ -30,7 +70,7 @@ def do_partition(visname, spw, preavg, CPUs, include_crosshand, createmms, spwna
     chanaverage = True if preavg > 1 else False
     correlation = '' if include_crosshand else 'XX,YY'
 
-    mstransform(vis=visname, outputvis=mvis, spw=spw, createmms=createmms, datacolumn='DATA', chanaverage=chanaverage, chanbin=preavg,
+    mstransform(vis=visname, outputvis=mvis, field=field, spw=spw, createmms=createmms, datacolumn='DATA', chanaverage=chanaverage, chanbin=preavg,
                 numsubms=nscan, separationaxis='scan', keepflags=True, usewtspectrum=True, nthreads=CPUs, antenna='*&', correlation=correlation)
 
     return mvis
@@ -66,7 +106,11 @@ def main(args,taskvals):
         npol = 2
     CPUs = npol if tasks*npol <= processMeerKAT.CPUS_PER_NODE_LIMIT else 1 #hard-code for number of polarisations
 
-    mvis = do_partition(visname, spw, preavg, CPUs, include_crosshand, createmms, spwname)
+    cal_fields = cal_field_selection(taskvals.get('fields', {}))
+    if not cal_fields:
+        raise ValueError("No calibrator fields found in [fields] section of config — partition.py needs at least one of bpassfield/fluxfield/phasecalfield to run.")
+
+    mvis = do_partition(visname, spw, preavg, CPUs, include_crosshand, createmms, spwname, field=cal_fields)
     mvis = "'{0}'".format(mvis)
     vis = "'{0}'".format(visname)
 

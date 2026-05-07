@@ -67,8 +67,8 @@ def pop_script(kwargs, script):
 def format_args(config, submit, quiet, dependencies, justrun):
     """Validate config and build kwargs dict for write_jobs()."""
 
-    from processMeerKAT import validate_args, _FACILITY
-    from spw import spw_split
+    from .processMeerKAT import validate_args, _FACILITY
+    from .spw import spw_split
 
     kwargs = get_config_kwargs(config, 'slurm', SLURM_CONFIG_KEYS)
     data_kwargs = get_config_kwargs(config, 'data', ['vis'])
@@ -138,6 +138,8 @@ def format_args(config, submit, quiet, dependencies, justrun):
         if not any(pb.lower() in imaging_kwargs['pbband'].lower() for pb in valid_pbbands):
             logger.warning('Invalid pbband found. Must be one of {}.'.format(valid_pbbands))
 
+    target_scripts = kwargs.get('target_scripts', []) or []
+
     if nspw == 1:
         if len(kwargs['precal_scripts']) > 0 or len(kwargs['postcal_scripts']) > 0:
             logger.warning('Appending pre/postcal_scripts to scripts since nspw=1.')
@@ -152,6 +154,8 @@ def format_args(config, submit, quiet, dependencies, justrun):
             kwargs = get_config_kwargs(config, 'slurm', SLURM_CONFIG_KEYS)
         else:
             scripts = kwargs['scripts']
+        # nspw == 1: no parallel target branch — there's a single MS containing everything.
+        target_scripts = []
     else:
         scripts = kwargs['precal_scripts'] + kwargs['postcal_scripts']
 
@@ -166,6 +170,9 @@ def format_args(config, submit, quiet, dependencies, justrun):
     kwargs['scripts'] = [check_path(i[0]) for i in scripts]
     kwargs['threadsafe'] = [i[1] for i in scripts]
     kwargs['containers'] = [check_path(i[2]) for i in scripts]
+    kwargs['target_scripts'] = [
+        (check_path(i[0]), i[1], check_path(i[2])) for i in target_scripts
+    ]
 
     if not crosscal_kwargs['createmms']:
         logger.info("'createmms = False' in '{0}', forcing 'keepmms = False'.".format(config))
@@ -250,7 +257,7 @@ def default_config(arg_dict):
     config_parser.overwrite_config(filename, conf_dict=slurm_dict, conf_sec='slurm')
     config_parser.overwrite_config(filename, conf_dict={'vis': "'{0}'".format(MS)}, conf_sec='data')
 
-    from processMeerKAT import _FACILITY
+    from .processMeerKAT import _FACILITY
     config_parser.overwrite_config(
         filename,
         conf_dict={'name': "'{0}'".format(_FACILITY.name)},

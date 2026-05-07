@@ -7,9 +7,11 @@ that are facility-independent.
 
 import os
 
-# Paths relative to the pipeline installation directory
-THIS_PROG = os.path.abspath(__file__)
-SCRIPT_DIR = os.path.dirname(THIS_PROG)
+# Paths relative to the pipeline installation directory.
+# THIS_PROG = the user-facing CLI command name (entry point in pyproject.toml).
+# SCRIPT_DIR = the package directory, used for locating bundled scripts.
+THIS_PROG = 'processMeerKAT'
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Well-known directory / file names (relative to the working directory)
 LOG_DIR = 'logs'
@@ -46,18 +48,24 @@ SLURM_CONFIG_STR_KEYS = [
 ]
 SLURM_CONFIG_KEYS = [
     'nodes', 'ntasks_per_node', 'mem', 'plane', 'submit',
-    'precal_scripts', 'postcal_scripts', 'scripts', 'verbose', 'modules',
+    'precal_scripts', 'postcal_scripts', 'scripts', 'target_scripts',
+    'verbose', 'modules',
 ] + SLURM_CONFIG_STR_KEYS
 
 # Default calibration script lists
 # Each entry: (script_name, threadsafe, container_override)
+#
+# DAG (multi-SPW): precal_scripts run once at top level. Two parallel branches
+# follow: per-SPW calibrator solve chains run `scripts`; a single monolithic
+# target MMS runs `target_scripts`. postcal_scripts run after both branches
+# join, joining the per-SPW caltables and applying them to the target.
 PRECAL_SCRIPTS = [
-    ('calc_refant.py', False, ''),
     ('partition.py', True, ''),
+    ('partition_target.py', True, ''),
 ]
 POSTCAL_SCRIPTS = [
-    ('concat.py', False, ''),
-    ('plotcal_spw.py', False, ''),
+    ('concat_caltables.py', False, ''),
+    ('apply_to_target.py', True, ''),
     ('selfcal_part1.py', True, ''),
     ('selfcal_part2.py', False, ''),
     ('science_image.py', True, ''),
@@ -65,15 +73,16 @@ POSTCAL_SCRIPTS = [
 SCRIPTS = [
     ('validate_input.py', False, ''),
     ('flag_round_1.py', True, ''),
-    ('calc_refant.py', False, ''),
     ('setjy.py', True, ''),
     ('xx_yy_solve.py', False, ''),
     ('xx_yy_apply.py', True, ''),
     ('flag_round_2.py', True, ''),
     ('xx_yy_solve.py', False, ''),
     ('xx_yy_apply.py', True, ''),
-    ('split.py', True, ''),
-    ('quick_tclean.py', True, ''),
+]
+TARGET_SCRIPTS = [
+    ('validate_input.py', False, ''),
+    ('flag_round_1.py', True, ''),
 ]
 
 # Facility-specific defaults (these match IlifuFacility; overridden at runtime)
