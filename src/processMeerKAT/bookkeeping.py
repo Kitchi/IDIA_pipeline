@@ -53,6 +53,65 @@ def bookkeeping(visname):
     return get_calfiles(visname, caldir), caldir
 
 
+def get_all_spw_caldirs(top_dir, config_name='default_config.txt'):
+    """Discover the per-SPW caldirs sitting under a top-level run directory.
+
+    Used by postcal scripts (concat_caltables, apply_to_target) to find every
+    per-SPW pipeline subdir, read its global SPW ID from its config, and
+    locate its ``caltables/`` directory.
+
+    Parameters
+    ----------
+    top_dir : str
+        Top-level pipeline directory (the parent of the per-SPW subdirs).
+    config_name : str
+        Filename of the per-SPW config file (defaults to ``default_config.txt``).
+
+    Returns
+    -------
+    list[dict]
+        One entry per discovered SPW, sorted by global SPW ID. Each entry has:
+          - ``dir``: absolute path to the SPW subdir
+          - ``caldir``: absolute path to the SPW's caltables/ directory
+          - ``spw_id``: the global SPW ID parsed from ``[crosscal] spw``
+          - ``spw_string``: the raw SPW string from the per-SPW config
+    """
+    from . import config_parser as _cp
+
+    entries = []
+    for name in sorted(os.listdir(top_dir)):
+        spw_dir = os.path.join(top_dir, name)
+        spw_config = os.path.join(spw_dir, config_name)
+        if not os.path.isdir(spw_dir) or not os.path.isfile(spw_config):
+            continue
+        spw_string = _cp.get_key(spw_config, 'crosscal', 'spw')
+        if not isinstance(spw_string, str):
+            continue
+        spw_id = _parse_global_spw_id(spw_string)
+        if spw_id is None:
+            continue
+        entries.append({
+            'dir': spw_dir,
+            'caldir': os.path.join(spw_dir, 'caltables'),
+            'spw_id': spw_id,
+            'spw_string': spw_string,
+        })
+
+    entries.sort(key=lambda e: e['spw_id'])
+    return entries
+
+
+def _parse_global_spw_id(spw_string):
+    """Extract the global SPW ID from an SPW selection string like '0:880~933MHz'.
+
+    Returns None if the string has no explicit numeric ID prefix (e.g. '*:..').
+    """
+    head = spw_string.split(':', 1)[0].strip().strip("'\"")
+    if head.isdigit():
+        return int(head)
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Field IDs
 # ---------------------------------------------------------------------------
