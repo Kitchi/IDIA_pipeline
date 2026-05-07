@@ -84,12 +84,18 @@ def srun(arg_dict, qos=True, time=10, mem=4):
 # Command and sbatch generation
 # ---------------------------------------------------------------------------
 
+def _is_cal_partition(script):
+    """True only for the per-SPW calibrator partition (not partition_target)."""
+    name = os.path.basename(script).split('.')[0]
+    return name == 'partition'
+
+
 def write_command(script, args, name='job', mpi_wrapper=MPI_WRAPPER,
                   container=CONTAINER, casa_script=False, logfile=True,
                   plot=False, SPWs='', nspw=1):
     """Write a bash command calling a script, optionally via CASA/singularity."""
 
-    arrayJob = ',' in SPWs and 'partition' in script and nspw > 1
+    arrayJob = ',' in SPWs and _is_cal_partition(script) and nspw > 1
 
     params = locals()
     params['LOG_DIR'] = LOG_DIR
@@ -122,7 +128,16 @@ def write_command(script, args, name='job', mpi_wrapper=MPI_WRAPPER,
 
         """ % SPWs.replace(',', ' ').replace(SPW_PREFIX, '')
 
-    command += "{mpi_wrapper} singularity exec {container} {plot_call} {casa_call} {script} {args}".format(**params)
+    if container:
+        command += "{mpi_wrapper} singularity exec {container} {plot_call} {casa_call} {script} {args}".format(**params)
+    else:
+        # No container — invoke directly using the active env's python. Used
+        # for local/test deployments where CASA is pip-installed in the
+        # current env (e.g. py312 with casatasks). `-P` keeps sys.path clean
+        # so the package import wins over the script dir.
+        if params['casa_call'] == 'python':
+            params['casa_call'] = 'python -P'
+        command += "{mpi_wrapper} {plot_call} {casa_call} {script} {args}".format(**params)
 
     if arrayJob:
         command += '\ncd ..\n'
@@ -145,9 +160,9 @@ def write_sbatch(script, args, nodes=1, tasks=16, mem=MEM_PER_NODE_GB_LIMIT,
     params['LOG_DIR'] = LOG_DIR
 
     params['cpus'] = 1
-    if 'tclean' in script or 'selfcal' in script or 'partition' in script or 'image' in script:
+    if 'tclean' in script or 'selfcal' in script or _is_cal_partition(script) or 'image' in script:
         params['cpus'] = int(CPUS_PER_NODE_LIMIT / tasks)
-    if 'partition' in script:
+    if _is_cal_partition(script):
         dopol = config_parser.get_key(TMP_CONFIG, 'run', 'dopol')
         if dopol and 4 * tasks < CPUS_PER_NODE_LIMIT:
             params['cpus'] = 4
@@ -175,7 +190,7 @@ def write_sbatch(script, args, nodes=1, tasks=16, mem=MEM_PER_NODE_GB_LIMIT,
         container=container, casa_script=casa_script, plot=plot,
         SPWs=SPWs, nspw=nspw,
     )
-    if 'partition' in script and ',' in SPWs and nspw > 1:
+    if _is_cal_partition(script) and ',' in SPWs and nspw > 1:
         params['ID'] = '%A_%a'
         params['array'] = '\n#SBATCH --array=0-{0}%{1}'.format(nspw - 1, nconcurrent)
     else:
@@ -389,8 +404,17 @@ def write_master(filename, config, scripts=[], submit=False,
 
 def write_spw_master(filename, config, SPWs, precal_scripts, postcal_scripts,
                      submit, dir='jobScripts', pad_length=5, dependencies='',
-                     timestamp='', slurm_kwargs={}):
-    """Write top-level master script for multi-SPW pipeline."""
+                     timestamp='', slurm_kwargs={}, target_scripts=None):
+    """Write top-level master script for multi-SPW pipeline.
+
+    DAG: precal_scripts run once at top level (chained). The cal partition is
+    a job-array (one element per SPW) feeding parallel per-SPW solve chains.
+    If target_scripts and a `partition_target.sbatch` precal entry are present,
+    a parallel target branch is emitted depending on partition_target's job ID.
+    postcal_scripts run after both branches join.
+    """
+
+    target_scripts = target_scripts or []
 
     master = open(filename, 'w')
     master.write('#!/bin/bash\n')
@@ -416,10 +440,19 @@ def write_spw_master(filename, config, SPWs, precal_scripts, postcal_scripts,
         master.write('echo Calculating reference antenna, and copying result to SPW directories.\n')
     if 'partition.sbatch' in precal_scripts:
         master.write('echo Running partition job array, iterating over {0} SPWs.\n'.format(len(SPWs.split(','))))
+    if 'partition_target.sbatch' in precal_scripts:
+        master.write('echo Splitting target into a single MMS for the parallel target branch.\n')
 
-    partition = len(precal_scripts) > 0 and 'partition' in precal_scripts[-1]
+    # Locate partition + partition_target job IDs by name (1-indexed cut field).
+    partition_idx = (precal_scripts.index('partition.sbatch') + 1
+                     if 'partition.sbatch' in precal_scripts else None)
+    target_partition_idx = (precal_scripts.index('partition_target.sbatch') + 1
+                            if 'partition_target.sbatch' in precal_scripts else None)
+    partition = partition_idx is not None
     if partition:
-        master.write('\npartitionID=$(echo $allSPWIDs | cut -d , -f{0})\n'.format(len(precal_scripts)))
+        master.write('\npartitionID=$(echo $allSPWIDs | cut -d , -f{0})\n'.format(partition_idx))
+    if target_partition_idx is not None:
+        master.write('targetPartID=$(echo $allSPWIDs | cut -d , -f{0})\n'.format(target_partition_idx))
 
     killScript = 'killJobs'
     summaryScript = 'summary'
@@ -452,12 +485,33 @@ def write_spw_master(filename, config, SPWs, precal_scripts, postcal_scripts,
             master.write("IDs+=,$(echo $output | sed 's/.*IDs\\:\\s\\(.*\\)/\\1/')")
         master.write('\ncd ..\n\n')
 
+    # Target branch — runs in parallel with the per-SPW solve chains.
+    target_branch_active = bool(target_scripts) and target_partition_idx is not None
+    if target_branch_active:
+        master.write('\n#Target branch (parallel to per-SPW calibrator chains)\n')
+        first = True
+        for script in target_scripts:
+            if first:
+                command = "sbatch -d afterok:${targetPartID//,/:} --kill-on-invalid-dep=yes"
+                master.write('\n#{0}\n'.format(script))
+                master.write("targetIDs=$({0} {1} | cut -d ' ' -f4)\n".format(command, script))
+                first = False
+            else:
+                command = "sbatch -d afterok:${targetIDs//,/:} --kill-on-invalid-dep=yes"
+                master.write('\n#{0}\n'.format(script))
+                master.write("targetIDs+=,$({0} {1} | cut -d ' ' -f4)\n".format(command, script))
+
     if 'concat.sbatch' in postcal_scripts:
         master.write('echo Will concatenate MSs/MMSs and create quick-look continuum cube across all SPWs for all fields from "{0}".\n'.format(config))
     scripts = _expand_selfcal_loops(config, postcal_scripts[:])
 
+    # Postcal first script joins both branches (per-SPW chains and target branch).
+    join_dep = "${IDs//,/:}"
+    if target_branch_active:
+        join_dep += ":${targetIDs//,/:}"
+
     if len(scripts) > 0:
-        command = "sbatch -d afterany:${IDs//,/:}"
+        command = "sbatch -d afterany:" + join_dep
         master.write('\n#{0}\n'.format(scripts[0]))
         if len(precal_scripts) == 0:
             master.write("allSPWIDs=$({0} {1} | cut -d ' ' -f4)\n".format(command, scripts[0]))
@@ -576,15 +630,16 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
                plane=1, partition='Main', time='12:00:00', submit=False,
                name='', verbose=False, quiet=False, dependencies='',
                exclude='', account='b03-idia-ag', reservation='',
-               modules=[], timestamp='', justrun=False):
+               modules=[], timestamp='', justrun=False, target_scripts=None):
     """Write all sbatch files and the master submission script."""
 
-    from constants import CROSSCAL_CONFIG_KEYS
-    from pipeline import get_config_kwargs
+    from .constants import CROSSCAL_CONFIG_KEYS
+    from .pipeline import get_config_kwargs
 
     kwargs = locals()
     crosscal_kwargs = get_config_kwargs(config, 'crosscal', CROSSCAL_CONFIG_KEYS)
     pad_length = len(name)
+    target_scripts = target_scripts or []
 
     for i, script in enumerate(scripts):
         jobname = os.path.splitext(os.path.split(script)[1])[0]
@@ -603,6 +658,27 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
             modules=modules, justrun=justrun,
         )
 
+    # Target branch: same scripts can appear here under a `target_` prefix and
+    # are pointed at `target_config.txt` (written by partition_target.py at
+    # runtime) so they read the monolithic target MMS instead of the cal MMSes.
+    target_sbatch_names = []
+    for (script_path, ts, ctr) in target_scripts:
+        jobname = 'target_' + os.path.splitext(os.path.split(script_path)[1])[0]
+        write_sbatch(
+            script_path, '--config target_config.txt',
+            nodes=nodes if ts else 1,
+            tasks=ntasks_per_node if ts else 1,
+            mem=mem,
+            plane=plane if ts else 1,
+            mpi_wrapper=mpi_wrapper if ts else 'srun',
+            container=ctr or '', partition=partition, time=time,
+            name=jobname, runname=name,
+            SPWs=crosscal_kwargs['spw'], nspw=crosscal_kwargs['nspw'],
+            exclude=exclude, account=account, reservation=reservation,
+            modules=modules, justrun=justrun,
+        )
+        target_sbatch_names.append(jobname + '.sbatch')
+
     scripts = [os.path.split(scripts[i])[1].replace('.py', '.sbatch') for i in range(len(scripts))]
     precal_scripts = scripts[:num_precal_scripts]
     postcal_scripts = scripts[num_precal_scripts:]
@@ -614,6 +690,7 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
             SPWs=crosscal_kwargs['spw'],
             precal_scripts=precal_scripts,
             postcal_scripts=postcal_scripts,
+            target_scripts=target_sbatch_names,
             submit=submit, pad_length=pad_length,
             dependencies=dependencies, timestamp=timestamp,
             slurm_kwargs=kwargs,

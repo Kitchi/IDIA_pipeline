@@ -141,7 +141,10 @@ def spw_split(spw, nspw, config, mem, badfreqranges, MS, partition,
         )
     )
     for spw in SPWs:
-        spw_dir = spw.replace(SPW_PREFIX, '')
+        # Dir name = SPW string minus any prefix selector. SPW_PREFIX is '*:'
+        # (legacy linspace path); auto_detect_spw emits explicit IDs like '0:'
+        # which we also strip so the dir name has no colons.
+        spw_dir = re.sub(r'^(\*|\d+):', '', spw.replace(SPW_PREFIX, ''))
         spw_config = '{0}/{1}'.format(spw_dir, config)
         if not os.path.exists(spw_dir):
             os.mkdir(spw_dir)
