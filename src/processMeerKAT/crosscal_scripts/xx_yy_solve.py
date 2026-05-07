@@ -5,9 +5,9 @@ import sys
 import os
 import shutil
 
-import config_parser
-import bookkeeping
-from config_parser import validate_args as va
+from .. import config_parser
+from .. import bookkeeping
+from ..config_parser import validate_args as va
 
 from casatasks import *
 logfile=casalog.logfile()

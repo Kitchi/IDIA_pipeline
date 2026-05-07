@@ -6,22 +6,8 @@ import sys
 import os
 import numpy as np
 
-# Support both CASA-standalone invocation (flat imports, when this file is
-# executed directly inside src/processMeerKAT/ via srun under CASA) and
-# package-style imports (relative, when imported as processMeerKAT.read_ms by
-# the test suite or other library code). When neither relative nor flat works
-# — typically because we're invoked as a standalone script with `python -P`
-# (used in container-less local runs to clean sys.path) — reach into the
-# installed package by qualified name.
-try:
-    from . import processMeerKAT
-    from . import config_parser
-except ImportError:
-    try:
-        import processMeerKAT
-        import config_parser
-    except ImportError:
-        from processMeerKAT import processMeerKAT, config_parser
+from . import processMeerKAT
+from . import config_parser
 
 from casatasks import *
 from casatools import msmetadata,table,measures,quanta

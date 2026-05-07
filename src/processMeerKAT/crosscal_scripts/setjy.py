@@ -3,8 +3,8 @@
 
 import os, sys, shutil
 
-import bookkeeping
-from config_parser import validate_args as va
+from .. import bookkeeping
+from ..config_parser import validate_args as va
 import numpy as np
 import logging
 from time import gmtime

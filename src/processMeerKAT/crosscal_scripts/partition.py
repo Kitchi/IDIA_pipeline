@@ -11,24 +11,11 @@ calibrator solve chain and the target flag chain can run in parallel branches.
 import sys
 import os
 
-# Support relative (package), flat (CASA-standalone, CWD = package dir), and
-# qualified (`python -P` standalone — script dir not on sys.path) import paths.
-try:
-    from .. import config_parser
-    from ..config_parser import validate_args as va
-    from .. import read_ms
-    from .. import processMeerKAT
-    from .. import bookkeeping
-except ImportError:
-    try:
-        import config_parser
-        from config_parser import validate_args as va
-        import read_ms
-        import processMeerKAT
-        import bookkeeping
-    except ImportError:
-        from processMeerKAT import config_parser, read_ms, processMeerKAT, bookkeeping
-        from processMeerKAT.config_parser import validate_args as va
+from .. import config_parser
+from ..config_parser import validate_args as va
+from .. import read_ms
+from .. import processMeerKAT
+from .. import bookkeeping
 
 from casatasks import *
 logfile=casalog.logfile()

@@ -3,9 +3,9 @@
 
 #!/usr/bin/env python3
 import os
-import bookkeeping
-import config_parser
-from selfcal_scripts.selfcal_part2 import find_outliers
+from .. import bookkeeping
+from .. import config_parser
+from .selfcal_part2 import find_outliers
 from casatasks import casalog
 logfile=casalog.logfile()
 casalog.setlogfile('logs/{SLURM_JOB_NAME}-{SLURM_JOB_ID}.casa'.format(**os.environ))

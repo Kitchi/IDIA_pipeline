@@ -13,23 +13,11 @@ in parallel with the per-SPW calibrator solve chains. The MMS layout
 import sys
 import os
 
-try:
-    from .. import config_parser
-    from ..config_parser import validate_args as va
-    from .. import processMeerKAT
-    from .. import bookkeeping
-    from .partition import _strip_quotes
-except ImportError:
-    try:
-        import config_parser
-        from config_parser import validate_args as va
-        import processMeerKAT
-        import bookkeeping
-        from partition import _strip_quotes
-    except ImportError:
-        from processMeerKAT import config_parser, processMeerKAT, bookkeeping
-        from processMeerKAT.config_parser import validate_args as va
-        from processMeerKAT.crosscal_scripts.partition import _strip_quotes
+from .. import config_parser
+from ..config_parser import validate_args as va
+from .. import processMeerKAT
+from .. import bookkeeping
+from .partition import _strip_quotes
 
 from casatasks import *
 logfile = casalog.logfile()

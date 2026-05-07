@@ -8,10 +8,10 @@ import os
 import re
 import numpy as np
 
-import config_parser
-from config_parser import validate_args as va
-import bookkeeping
-import processMeerKAT
+from .. import config_parser
+from ..config_parser import validate_args as va
+from .. import bookkeeping
+from .. import processMeerKAT
 
 from astropy.coordinates import SkyCoord
 from astropy.io import fits

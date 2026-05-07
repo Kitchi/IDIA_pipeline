@@ -4,8 +4,8 @@
 import os
 import numpy as np
 
-import config_parser
-import bookkeeping
+from . import config_parser
+from . import bookkeeping
 
 from casatasks import *
 logfile=casalog.logfile()

@@ -13,20 +13,10 @@ ready for selfcal / science imaging.
 import os
 import sys
 
-try:
-    from .. import config_parser
-    from ..config_parser import validate_args as va
-    from .. import bookkeeping
-    from .. import processMeerKAT
-except ImportError:
-    try:
-        import config_parser
-        from config_parser import validate_args as va
-        import bookkeeping
-        import processMeerKAT
-    except ImportError:
-        from processMeerKAT import config_parser, bookkeeping, processMeerKAT
-        from processMeerKAT.config_parser import validate_args as va
+from .. import config_parser
+from ..config_parser import validate_args as va
+from .. import bookkeeping
+from .. import processMeerKAT
 
 from casatasks import *
 logfile = casalog.logfile()

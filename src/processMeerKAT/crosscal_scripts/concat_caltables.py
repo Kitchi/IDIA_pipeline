@@ -18,20 +18,10 @@ to the ``[run]`` config section so ``apply_to_target.py`` can find them.
 import os
 import sys
 
-try:
-    from .. import config_parser
-    from ..config_parser import validate_args as va
-    from .. import bookkeeping
-    from .. import processMeerKAT
-except ImportError:
-    try:
-        import config_parser
-        from config_parser import validate_args as va
-        import bookkeeping
-        import processMeerKAT
-    except ImportError:
-        from processMeerKAT import config_parser, bookkeeping, processMeerKAT
-        from processMeerKAT.config_parser import validate_args as va
+from .. import config_parser
+from ..config_parser import validate_args as va
+from .. import bookkeeping
+from .. import processMeerKAT
 
 import numpy as np
 from casatasks import *

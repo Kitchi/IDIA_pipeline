@@ -23,14 +23,12 @@ processMeerKAT = "processMeerKAT.processMeerKAT:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-# Include config template and auxiliary data bundled with the package.
-# selfcal_scripts/ and aux_scripts/ have no __init__.py so they are not
-# auto-discovered as sub-packages; include them explicitly as data.
+# Bundled non-Python data. crosscal_scripts/, selfcal_scripts/, aux_scripts/
+# are real subpackages (each has __init__.py) and are auto-discovered by
+# setuptools — no need to enumerate their .py files here.
 "processMeerKAT" = [
     "default_config.txt",
     "RACS.fits.gz",
-    "selfcal_scripts/*.py",
-    "aux_scripts/*.py",
 ]
 
 # ---------------------------------------------------------------------------
@@ -38,8 +36,6 @@ where = ["src"]
 # ---------------------------------------------------------------------------
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Add processMeerKAT/ to sys.path so tests can do `import bookkeeping` etc.
-# directly, matching the flat-import style used by the modules themselves.
 pythonpath = ["src"]
 addopts = "-v --tb=short"
 filterwarnings = [

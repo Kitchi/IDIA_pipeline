@@ -4,9 +4,9 @@
 import sys
 import os
 
-from config_parser import validate_args as va
-import processMeerKAT
-import read_ms, bookkeeping
+from .config_parser import validate_args as va
+from . import processMeerKAT
+from . import read_ms, bookkeeping
 
 from casatools import msmetadata
 from casatasks import casalog

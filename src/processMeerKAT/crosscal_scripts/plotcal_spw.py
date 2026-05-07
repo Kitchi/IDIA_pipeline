@@ -5,7 +5,7 @@
 
 import os
 import glob
-import config_parser
+from .. import config_parser
 import traceback
 
 import matplotlib
@@ -14,8 +14,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
-from config_parser import validate_args as va
-import bookkeeping
+from ..config_parser import validate_args as va
+from .. import bookkeeping
 import glob
 PLOT_DIR = 'plots'
 EXTN = 'png'
