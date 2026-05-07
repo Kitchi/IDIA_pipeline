@@ -223,6 +223,8 @@ def parse_args():
                         help="SLURM accounting group (auto-detected if omitted).")
     parser.add_argument("-r", "--reservation", metavar="name", required=False, type=str, default='',
                         help="SLURM reservation to use.")
+    parser.add_argument("-F", "--facility", metavar="name", required=False, type=str, default=None,
+                        help="Facility to target during -B (e.g. ilifu, generic_slurm). At -R time the [facility] section in the config file takes precedence.")
     parser.add_argument("-l", "--local", action="store_true", required=False, default=False,
                         help="Build config locally without srun.")
     parser.add_argument("-s", "--submit", action="store_true", required=False, default=False,
@@ -301,10 +303,12 @@ def main():
         logger.info('This is version {0}'.format(__version__))
     if args.license:
         logger.info(license)
+    global _FACILITY
     if args.build:
+        if args.facility:
+            _FACILITY = get_facility(args.facility)
         default_config(vars(args))
     if args.run:
-        global _FACILITY
         _FACILITY = load_facility_from_config(args.config)
         kwargs = format_args(args.config, args.submit, args.quiet, args.dependencies, args.justrun)
         write_jobs(args.config, **kwargs)

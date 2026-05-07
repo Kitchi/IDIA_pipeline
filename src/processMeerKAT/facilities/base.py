@@ -34,6 +34,14 @@ class FacilityConfig:
     default_account: str = ''
     default_partition: str = 'normal'
     default_modules: list = field(default_factory=list)
+    # Command prefix injected before every script invocation. Replaces the
+    # legacy hard-coded `singularity exec {container}`. Examples:
+    #   - Container facility: "singularity exec /idia/.../casa.sif"
+    #   - Conda env on a bare cluster: "conda run -n py312 --no-capture-output"
+    #   - Native Python with casatasks pip-installed: "" (empty)
+    # If a per-script `container` override is set in [slurm].containers, that
+    # wins (built as `singularity exec {container}` for backward compat).
+    default_runner: str = ''
 
     # Optional validation hooks
     validate_account: Callable = field(default=_noop_validate_account, repr=False)

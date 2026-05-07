@@ -128,6 +128,7 @@ def format_args(config, submit, quiet, dependencies, justrun):
                 mpi_wrapper = srun(sky_model_kwargs, qos=True, time=2, mem=0)
                 command = write_command('set_sky_model.py', '-C {0}'.format(config),
                                         mpi_wrapper=mpi_wrapper, container=kwargs['container'],
+                                        default_runner=getattr(_FACILITY, 'default_runner', ''),
                                         logfile=False)
                 logger.debug('Running: {0}'.format(command))
                 os.system(command)
@@ -298,7 +299,9 @@ def default_config(arg_dict):
         if arg_dict['verbose']:
             params += ' -v'
         command = write_command('read_ms.py', params, mpi_wrapper=mpi_wrapper,
-                                container=arg_dict['container'], logfile=False)
+                                container=arg_dict['container'],
+                                default_runner=getattr(_FACILITY, 'default_runner', ''),
+                                logfile=False)
         logger.info('Extracting field IDs from "{0}" using CASA.'.format(MS))
         logger.debug('Using command:\n\t{0}'.format(command))
         os.system(command)

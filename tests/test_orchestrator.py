@@ -25,11 +25,16 @@ class TestWriteCommand:
                                 casa_script=False, logfile=False)
         assert 'python' in cmd
 
-    def test_uses_casa_for_casa_script(self, tmp_pipeline_dir):
+    def test_uses_python_dash_m_for_package_scripts(self, tmp_pipeline_dir):
+        """All scripts shipped with the package are invoked via `python -m`,
+        not `casa --nogui -c` and not as a bare file path. CASA 6+ ships its
+        tooling as importable Python modules, so a plain python invocation
+        works in both container and bare-env modes."""
         cmd = pmk.write_command('flag_round_1.py', '--config .config.tmp',
                                 mpi_wrapper='mpirun', container='/some/container.sif',
                                 casa_script=True, logfile=False)
-        assert 'casa' in cmd.lower()
+        assert 'python -m processMeerKAT.crosscal_scripts.flag_round_1' in cmd
+        assert 'casa --nogui' not in cmd
 
     def test_singularity_exec_present(self, tmp_pipeline_dir):
         cmd = pmk.write_command('flag_round_1.py', '--config .config.tmp',

@@ -90,59 +90,82 @@ def _is_cal_partition(script):
     return name == 'partition'
 
 
+# Subdirs of the package that hold runnable scripts. Order matters only when a
+# name collides — package root wins last, falling through to subpackages first.
+_SCRIPT_SUBPACKAGES = (
+    ('crosscal_scripts', 'processMeerKAT.crosscal_scripts'),
+    ('selfcal_scripts', 'processMeerKAT.selfcal_scripts'),
+    ('aux_scripts', 'processMeerKAT.aux_scripts'),
+    ('', 'processMeerKAT'),
+)
+
+
+def script_module_path(script):
+    """Map a script name (or path) to a dotted Python module path.
+
+    Returns None if the script isn't found inside the installed package — the
+    caller should then fall back to file-path invocation (`python {script}`).
+    """
+    name = os.path.basename(script)
+    base, ext = os.path.splitext(name)
+    if ext != '.py':
+        return None
+    for subdir, pkg in _SCRIPT_SUBPACKAGES:
+        candidate = os.path.join(SCRIPT_DIR, subdir, name) if subdir else os.path.join(SCRIPT_DIR, name)
+        if os.path.isfile(candidate):
+            return f'{pkg}.{base}'
+    return None
+
+
+def _resolve_runner(container, default_runner):
+    """Pick the command prefix for a script invocation.
+
+    Per-script container override wins (built as `singularity exec <path>` for
+    backward compat with existing configs). Otherwise the facility's
+    default_runner is used (which itself may be `singularity exec ...`,
+    `conda run -n env ...`, or empty).
+    """
+    if container:
+        return 'singularity exec {0}'.format(container)
+    return default_runner or ''
+
+
 def write_command(script, args, name='job', mpi_wrapper=MPI_WRAPPER,
                   container=CONTAINER, casa_script=False, logfile=True,
-                  plot=False, SPWs='', nspw=1):
-    """Write a bash command calling a script, optionally via CASA/singularity."""
+                  plot=False, SPWs='', nspw=1, default_runner=''):
+    """Write a bash command calling a script.
+
+    The invoker is `python -m processMeerKAT.<subpath>.<module>` for any
+    script that ships with the package; user-supplied scripts not inside the
+    package fall back to `python {path/to/script}`. `casa --nogui -c` is no
+    longer used — CASA 6+ ships its tooling as plain importable Python
+    packages, so a direct `python` invocation works in both container and
+    bare-env modes.
+    """
 
     arrayJob = ',' in SPWs and _is_cal_partition(script) and nspw > 1
 
-    params = locals()
-    params['LOG_DIR'] = LOG_DIR
-    params['job'] = (
-        '${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}' if arrayJob
-        else '${SLURM_JOB_ID}'
-    )
-    params['job'] = '${SLURM_JOB_NAME}-' + params['job']
-    params['casa_call'] = ''
-    params['casa_log'] = '--nologfile'
-    params['plot_call'] = ''
-    command = ''
+    runner = _resolve_runner(container, default_runner)
+    plot_call = 'xvfb-run -a' if plot else ''
 
-    params['script'] = check_path(script, update=True)
-
-    if plot:
-        params['plot_call'] = 'xvfb-run -a'
-    if logfile:
-        params['casa_log'] = '--logfile {LOG_DIR}/{job}.casa'.format(**params)
-    if casa_script:
-        params['casa_call'] = "casa --nologger --nogui {casa_log} -c".format(**params)
+    module_path = script_module_path(script)
+    if module_path is not None:
+        invoke = f'python -m {module_path}'
     else:
-        params['casa_call'] = 'python'
+        invoke = f'python {check_path(script, update=True)}'
+
+    parts = [p for p in [runner, mpi_wrapper, plot_call, invoke, args] if p]
+    line = ' '.join(parts)
 
     if arrayJob:
-        command += """#Iterate over SPWs in job array, launching one after the other
-        SPWs="%s"
-        arr=($SPWs)
-        cd ${arr[SLURM_ARRAY_TASK_ID]}
-
-        """ % SPWs.replace(',', ' ').replace(SPW_PREFIX, '')
-
-    if container:
-        command += "{mpi_wrapper} singularity exec {container} {plot_call} {casa_call} {script} {args}".format(**params)
-    else:
-        # No container — invoke directly using the active env's python. Used
-        # for local/test deployments where CASA is pip-installed in the
-        # current env (e.g. py312 with casatasks). `-P` keeps sys.path clean
-        # so the package import wins over the script dir.
-        if params['casa_call'] == 'python':
-            params['casa_call'] = 'python -P'
-        command += "{mpi_wrapper} {plot_call} {casa_call} {script} {args}".format(**params)
-
-    if arrayJob:
-        command += '\ncd ..\n'
-
-    return command
+        prefix = (
+            '#Iterate over SPWs in job array, launching one after the other\n'
+            'SPWs="{0}"\n'
+            'arr=($SPWs)\n'
+            'cd ${{arr[SLURM_ARRAY_TASK_ID]}}\n\n'
+        ).format(SPWs.replace(',', ' ').replace(SPW_PREFIX, ''))
+        return prefix + line + '\ncd ..\n'
+    return line
 
 
 def write_sbatch(script, args, nodes=1, tasks=16, mem=MEM_PER_NODE_GB_LIMIT,
@@ -150,7 +173,7 @@ def write_sbatch(script, args, nodes=1, tasks=16, mem=MEM_PER_NODE_GB_LIMIT,
                  mpi_wrapper=MPI_WRAPPER, container=CONTAINER,
                  partition="Main", time="12:00:00", casa_script=False,
                  SPWs='', nspw=1, account='b03-idia-ag', reservation='',
-                 modules=[], justrun=False):
+                 modules=[], justrun=False, default_runner=''):
     """Write a SLURM sbatch file for a single pipeline step."""
 
     if not os.path.exists(LOG_DIR):
@@ -188,7 +211,7 @@ def write_sbatch(script, args, nodes=1, tasks=16, mem=MEM_PER_NODE_GB_LIMIT,
     params['command'] = write_command(
         script, args, name=name, mpi_wrapper=mpi_wrapper,
         container=container, casa_script=casa_script, plot=plot,
-        SPWs=SPWs, nspw=nspw,
+        SPWs=SPWs, nspw=nspw, default_runner=default_runner,
     )
     if _is_cal_partition(script) and ',' in SPWs and nspw > 1:
         params['ID'] = '%A_%a'
@@ -635,11 +658,13 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
 
     from .constants import CROSSCAL_CONFIG_KEYS
     from .pipeline import get_config_kwargs
+    from .processMeerKAT import _FACILITY
 
     kwargs = locals()
     crosscal_kwargs = get_config_kwargs(config, 'crosscal', CROSSCAL_CONFIG_KEYS)
     pad_length = len(name)
     target_scripts = target_scripts or []
+    default_runner = getattr(_FACILITY, 'default_runner', '')
 
     for i, script in enumerate(scripts):
         jobname = os.path.splitext(os.path.split(script)[1])[0]
@@ -655,7 +680,7 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
             name=jobname, runname=name,
             SPWs=crosscal_kwargs['spw'], nspw=crosscal_kwargs['nspw'],
             exclude=exclude, account=account, reservation=reservation,
-            modules=modules, justrun=justrun,
+            modules=modules, justrun=justrun, default_runner=default_runner,
         )
 
     # Target branch: same scripts can appear here under a `target_` prefix and
@@ -675,7 +700,7 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
             name=jobname, runname=name,
             SPWs=crosscal_kwargs['spw'], nspw=crosscal_kwargs['nspw'],
             exclude=exclude, account=account, reservation=reservation,
-            modules=modules, justrun=justrun,
+            modules=modules, justrun=justrun, default_runner=default_runner,
         )
         target_sbatch_names.append(jobname + '.sbatch')
 
