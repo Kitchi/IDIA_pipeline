@@ -11,7 +11,7 @@ from . import bookkeeping
 from .constants import (
     FIELDS_CONFIG_KEYS, CROSSCAL_CONFIG_KEYS, SELFCAL_CONFIG_KEYS,
     IMAGING_CONFIG_KEYS, SLURM_CONFIG_KEYS, SLURM_CONFIG_STR_KEYS,
-    TMP_CONFIG, CONFIG, SCRIPT_DIR,
+    PIPELINE_STATE, CONFIG, SCRIPT_DIR,
 )
 from .slurm_jobs import srun, write_command, write_jobs, check_path
 
@@ -197,7 +197,6 @@ def format_args(config, submit, quiet, dependencies, justrun):
         logger.warning("Cross-hand calibration scripts found. Forcing dopol=True.")
         config_parser.overwrite_config(
             config, conf_dict={'dopol': True}, conf_sec='run',
-            sec_comment='# Internal variables for pipeline execution'
         )
 
     includes_partition = any('partition' in script for script in kwargs['scripts'])
@@ -205,14 +204,13 @@ def format_args(config, submit, quiet, dependencies, justrun):
         kwargs['timestamp'] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         config_parser.overwrite_config(
             config,
-            conf_dict={'timestamp': "'{0}'".format(kwargs['timestamp'])},
+            conf_dict={'timestamp': kwargs['timestamp']},
             conf_sec='run',
-            sec_comment='# Internal variables for pipeline execution',
         )
         nspw = spw_split(spw, nspw, config, mem, crosscal_kwargs['badfreqranges'],
                          kwargs['MS'], includes_partition,
                          createmms=crosscal_kwargs['createmms'], fields=field_kwargs)
-        config_parser.overwrite_config(config, conf_dict={'nspw': "{0}".format(nspw)}, conf_sec='crosscal')
+        config_parser.overwrite_config(config, conf_dict={'nspw': nspw}, conf_sec='crosscal')
 
     if not crosscal_kwargs['calcrefant']:
         if pop_script(kwargs, 'calc_refant.py'):
@@ -234,8 +232,8 @@ def format_args(config, submit, quiet, dependencies, justrun):
     if len(kwargs['scripts']) == 0 and nspw == 1:
         logger.error('Nothing to do. Please insert scripts into "scripts" in "{0}".'.format(config))
 
-    logger.debug("Copying '{0}' to '{1}'.".format(config, TMP_CONFIG))
-    copyfile(config, TMP_CONFIG)
+    logger.debug("Copying '%s' to '%s'.", config, PIPELINE_STATE)
+    copyfile(config, PIPELINE_STATE)
     if not quiet:
         logger.warning("Changing [slurm] section in your config will have no effect unless you [-R --run] again.")
 
@@ -251,28 +249,20 @@ def default_config(arg_dict):
     copyfile('{0}/{1}'.format(SCRIPT_DIR, CONFIG), filename)
 
     slurm_dict = get_slurm_dict(arg_dict, SLURM_CONFIG_KEYS)
-    for key in SLURM_CONFIG_STR_KEYS:
-        if key in slurm_dict:
-            slurm_dict[key] = "'{0}'".format(slurm_dict[key])
 
     config_parser.overwrite_config(filename, conf_dict=slurm_dict, conf_sec='slurm')
-    config_parser.overwrite_config(filename, conf_dict={'vis': "'{0}'".format(MS)}, conf_sec='data')
+    config_parser.overwrite_config(filename, conf_dict={'vis': MS}, conf_sec='data')
 
     from .processMeerKAT import _FACILITY
     config_parser.overwrite_config(
         filename,
-        conf_dict={'name': "'{0}'".format(_FACILITY.name)},
+        conf_dict={'name': _FACILITY.name},
         conf_sec='facility',
-        sec_comment=(
-            '# Known facilities: ilifu, generic_slurm\n'
-            '# For a known facility, defaults are pre-validated — override only what differs.'
-        ),
     )
     config_parser.overwrite_config(
         filename,
         conf_dict={'dopol': arg_dict['dopol']},
         conf_sec='run',
-        sec_comment='# Internal variables for pipeline execution',
     )
 
     if not arg_dict['do2GC'] or not arg_dict['science_image']:

@@ -8,7 +8,7 @@ from datetime import datetime
 from . import config_parser
 from .constants import (
     LOG_DIR, SCRIPT_DIR, CALIB_SCRIPTS_DIR, AUX_SCRIPTS_DIR,
-    SELFCAL_SCRIPTS_DIR, TMP_CONFIG, MASTER_SCRIPT, SPW_PREFIX, THIS_PROG,
+    SELFCAL_SCRIPTS_DIR, PIPELINE_STATE, MASTER_SCRIPT, SPW_PREFIX, THIS_PROG,
     MPI_WRAPPER, CONTAINER,
     CPUS_PER_NODE_LIMIT, MEM_PER_NODE_GB_LIMIT, MEM_PER_NODE_GB_LIMIT_HIGHMEM,
 )
@@ -186,7 +186,7 @@ def write_sbatch(script, args, nodes=1, tasks=16, mem=MEM_PER_NODE_GB_LIMIT,
     if 'tclean' in script or 'selfcal' in script or _is_cal_partition(script) or 'image' in script:
         params['cpus'] = int(CPUS_PER_NODE_LIMIT / tasks)
     if _is_cal_partition(script):
-        dopol = config_parser.get_key(TMP_CONFIG, 'run', 'dopol')
+        dopol = config_parser.get_key(PIPELINE_STATE, 'run', 'dopol')
         if dopol and 4 * tasks < CPUS_PER_NODE_LIMIT:
             params['cpus'] = 4
         elif not dopol and params['cpus'] > 2:
@@ -368,9 +368,8 @@ def write_master(filename, config, scripts=[], submit=False,
         timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         config_parser.overwrite_config(
             config,
-            conf_dict={'timestamp': "'{0}'".format(timestamp)},
+            conf_dict={'timestamp': timestamp},
             conf_sec='run',
-            sec_comment='# Internal variables for pipeline execution',
         )
 
     scripts = _expand_selfcal_loops(config, scripts)
@@ -378,8 +377,8 @@ def write_master(filename, config, scripts=[], submit=False,
     master = open(filename, 'w')
     master.write('#!/bin/bash\n')
     if verbose:
-        master.write("\necho Copying '{0}' to '{1}', and using this to run pipeline.\n".format(config, TMP_CONFIG))
-    master.write('cp {0} {1}\n'.format(config, TMP_CONFIG))
+        master.write("\necho Copying '{0}' to '{1}', and using this to run pipeline.\n".format(config, PIPELINE_STATE))
+    master.write('cp {0} {1}\n'.format(config, PIPELINE_STATE))
 
     command = 'sbatch'
     if dependencies != '':
@@ -670,7 +669,7 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
         jobname = os.path.splitext(os.path.split(script)[1])[0]
         ts = threadsafe[i]
         write_sbatch(
-            script, '--config {0}'.format(TMP_CONFIG),
+            script, '--config {0}'.format(PIPELINE_STATE),
             nodes=nodes if ts else 1,
             tasks=ntasks_per_node if ts else 1,
             mem=mem,

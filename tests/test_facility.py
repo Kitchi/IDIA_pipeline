@@ -127,16 +127,16 @@ class TestLoadFacilityFromConfig:
         assert result is ILIFU
 
     def test_override_field_via_config(self, tmp_path, monkeypatch):
-        cfg = tmp_path / 'cfg.txt'
-        cfg.write_text("[facility]\nname = 'ilifu'\ntotal_nodes_limit = 10\n")
+        cfg = tmp_path / 'cfg.yaml'
+        cfg.write_text("facility:\n  name: ilifu\n  total_nodes_limit: 10\n")
         monkeypatch.setattr(_pmk_mod, '_FACILITY', ILIFU)
         result = pmk.load_facility_from_config(str(cfg))
         assert result.total_nodes_limit == 10
         assert result.cpus_per_node_limit == ILIFU.cpus_per_node_limit
 
     def test_unknown_facility_name_raises(self, tmp_path, monkeypatch):
-        cfg = tmp_path / 'cfg.txt'
-        cfg.write_text("[facility]\nname = 'badname'\n")
+        cfg = tmp_path / 'cfg.yaml'
+        cfg.write_text("facility:\n  name: badname\n")
         monkeypatch.setattr(_pmk_mod, '_FACILITY', ILIFU)
         with pytest.raises(ValueError, match="Unknown facility"):
             pmk.load_facility_from_config(str(cfg))

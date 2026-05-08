@@ -411,9 +411,9 @@ if __name__ == '__main__':
     loop += 1
 
     if config_parser.has_section(args['config'], 'image'):
-        config_parser.overwrite_config(args['config'], conf_dict={'mask' : "'{0}'".format(pixmask)}, conf_sec='image')
-        config_parser.overwrite_config(args['config'], conf_dict={'rmsmap' : "'{0}'".format(rmsmap)}, conf_sec='image')
-        config_parser.overwrite_config(args['config'], conf_dict={'outlierfile' : "'{0}'".format(outlierfile)}, conf_sec='image')
+        config_parser.overwrite_config(args['config'], conf_dict={'mask': pixmask}, conf_sec='image')
+        config_parser.overwrite_config(args['config'], conf_dict={'rmsmap': rmsmap}, conf_sec='image')
+        config_parser.overwrite_config(args['config'], conf_dict={'outlierfile': outlierfile}, conf_sec='image')
     config_parser.overwrite_config(args['config'], conf_dict={'loop' : loop},  conf_sec='selfcal')
 
     bookkeeping.rename_logs(logfile)

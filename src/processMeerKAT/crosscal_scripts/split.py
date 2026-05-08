@@ -57,8 +57,8 @@ def main(args,taskvals):
     msmd.open(visname)
     newvis = split_vis(visname, spw, fields, specavg, timeavg, keepmms, badants)
 
-    config_parser.overwrite_config(args['config'], conf_dict={'vis' : "'{0}'".format(newvis)}, conf_sec='data')
-    config_parser.overwrite_config(args['config'], conf_dict={'crosscal_vis': "'{0}'".format(visname)}, conf_sec='run', sec_comment='# Internal variables for pipeline execution')
+    config_parser.overwrite_config(args['config'], conf_dict={'vis': newvis}, conf_sec='data')
+    config_parser.overwrite_config(args['config'], conf_dict={'crosscal_vis': visname}, conf_sec='run')
     msmd.done()
 
 if __name__ == '__main__':

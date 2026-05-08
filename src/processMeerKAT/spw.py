@@ -132,7 +132,7 @@ def spw_split(spw, nspw, config, mem, badfreqranges, MS, partition,
         i += 1
 
     config_parser.overwrite_config(
-        config, conf_dict={'spw': "'{0}'".format(','.join(SPWs))}, conf_sec='crosscal'
+        config, conf_dict={'spw': ','.join(SPWs)}, conf_sec='crosscal'
     )
 
     logger.info(
@@ -149,7 +149,7 @@ def spw_split(spw, nspw, config, mem, badfreqranges, MS, partition,
         if not os.path.exists(spw_dir):
             os.mkdir(spw_dir)
         copyfile(config, spw_config)
-        config_parser.overwrite_config(spw_config, conf_dict={'spw': "'{0}'".format(spw)}, conf_sec='crosscal')
+        config_parser.overwrite_config(spw_config, conf_dict={'spw': spw}, conf_sec='crosscal')
         config_parser.overwrite_config(spw_config, conf_dict={'nspw': 1}, conf_sec='crosscal')
         config_parser.overwrite_config(spw_config, conf_dict={'mem': mem}, conf_sec='slurm')
         config_parser.overwrite_config(spw_config, conf_dict={'calcrefant': False}, conf_sec='crosscal')
@@ -159,7 +159,7 @@ def spw_split(spw, nspw, config, mem, badfreqranges, MS, partition,
         # Look 1 directory up when using relative path
         if MS[0] != '/':
             config_parser.overwrite_config(
-                spw_config, conf_dict={'vis': "'../{0}'".format(MS)}, conf_sec='data'
+                spw_config, conf_dict={'vis': '../{0}'.format(MS)}, conf_sec='data'
             )
 
         if not partition:
@@ -181,12 +181,11 @@ def spw_split(spw, nspw, config, mem, badfreqranges, MS, partition,
             orig_vis = config_parser.get_key(spw_config, 'data', 'vis')
             config_parser.overwrite_config(
                 spw_config,
-                conf_dict={'orig_vis': "'{0}'".format(orig_vis)},
+                conf_dict={'orig_vis': orig_vis},
                 conf_sec='run',
-                sec_comment='# Internal variables for pipeline execution',
             )
             config_parser.overwrite_config(
-                spw_config, conf_dict={'vis': "'{0}'".format(vis)}, conf_sec='data'
+                spw_config, conf_dict={'vis': vis}, conf_sec='data'
             )
 
     return nspw

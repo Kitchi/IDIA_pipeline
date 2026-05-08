@@ -98,11 +98,8 @@ def main(args,taskvals):
         raise ValueError("No calibrator fields found in [fields] section of config — partition.py needs at least one of bpassfield/fluxfield/phasecalfield to run.")
 
     mvis = do_partition(visname, spw, preavg, CPUs, include_crosshand, createmms, spwname, field=cal_fields)
-    mvis = "'{0}'".format(mvis)
-    vis = "'{0}'".format(visname)
-
-    config_parser.overwrite_config(args['config'], conf_sec='data', conf_dict={'vis':mvis})
-    config_parser.overwrite_config(args['config'], conf_sec='run', sec_comment='# Internal variables for pipeline execution', conf_dict={'orig_vis':vis})
+    config_parser.overwrite_config(args['config'], conf_sec='data', conf_dict={'vis': mvis})
+    config_parser.overwrite_config(args['config'], conf_sec='run', conf_dict={'orig_vis': visname})
     msmd.done()
 
 if __name__ == '__main__':

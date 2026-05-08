@@ -163,8 +163,8 @@ def main(args,taskvals):
 
     if ',' in spw:
         newvis = do_concat(visname, fields, dirs)
-        config_parser.overwrite_config(args['config'], conf_dict={'vis' : "'{0}'".format(newvis)}, conf_sec='data')
-        config_parser.overwrite_config(args['config'], conf_dict={'crosscal_vis': "'{0}'".format(visname)}, conf_sec='run', sec_comment='# Internal variables for pipeline execution')
+        config_parser.overwrite_config(args['config'], conf_dict={'vis': newvis}, conf_sec='data')
+        config_parser.overwrite_config(args['config'], conf_dict={'crosscal_vis': visname}, conf_sec='run')
     else:
         logger.error("Only found one SPW in '{0}', so will skip concat.".format(args['config']))
 

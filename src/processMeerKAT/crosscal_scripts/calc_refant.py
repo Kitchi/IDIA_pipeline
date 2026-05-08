@@ -96,7 +96,7 @@ def main(args,taskvals):
 
         refant, badants = get_ref_ant(visname, field)
         # Overwrite config file with new refant
-        config_parser.overwrite_config(args['config'], conf_sec='crosscal', conf_dict={'refant' : "'{0}'".format(refant)})
+        config_parser.overwrite_config(args['config'], conf_sec='crosscal', conf_dict={'refant': refant})
         config_parser.overwrite_config(args['config'], conf_sec='crosscal', conf_dict={'badants' : badants})
 
         #Replace reference antenna in each SPW config
@@ -104,7 +104,7 @@ def main(args,taskvals):
             for SPW in spw.split(','):
                 spw_config = '{0}/{1}'.format(SPW.replace('*:',''),args['config'])
                 # Overwrite config file with new refant
-                config_parser.overwrite_config(spw_config, conf_sec='crosscal', conf_dict={'refant' : "'{0}'".format(refant)})
+                config_parser.overwrite_config(spw_config, conf_sec='crosscal', conf_dict={'refant': refant})
                 config_parser.overwrite_config(spw_config, conf_sec='crosscal', conf_dict={'badants' : badants})
                 config_parser.overwrite_config(spw_config, conf_sec='crosscal', conf_dict={'calcrefant' : False})
     else:

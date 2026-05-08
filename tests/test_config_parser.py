@@ -2,7 +2,6 @@
 
 import os
 import pytest
-import ast
 
 import processMeerKAT.config_parser as config_parser
 
@@ -37,16 +36,16 @@ def test_parse_config_string_values(minimal_config):
 
 
 def test_parse_config_missing_file():
-    """A missing config file returns empty dict (configparser silently ignores)."""
-    taskvals, _ = config_parser.parse_config('/nonexistent/path/config.txt')
+    """A missing config file returns empty dict."""
+    taskvals, _ = config_parser.parse_config('/nonexistent/path/config.yaml')
     assert taskvals == {}
 
 
 def test_parse_config_bad_value(tmp_path):
-    """Unquoted strings that aren't valid Python literals should raise ValueError."""
-    cfg = tmp_path / 'bad.txt'
-    cfg.write_text('[data]\nvis = not a string and not quoted\n')
-    with pytest.raises(ValueError, match="Cannot format field 'vis'"):
+    """Malformed YAML should raise ValueError."""
+    cfg = tmp_path / 'bad.yaml'
+    cfg.write_text('data:\n  vis: {unclosed\n')
+    with pytest.raises(ValueError, match="Cannot parse YAML"):
         config_parser.parse_config(str(cfg))
 
 
@@ -87,8 +86,8 @@ def test_get_key_missing_returns_empty(minimal_config):
 # ---------------------------------------------------------------------------
 
 def test_overwrite_config_new_section(tmp_path):
-    cfg = tmp_path / 'cfg.txt'
-    cfg.write_text('[data]\nvis = \'test.ms\'\n')
+    cfg = tmp_path / 'cfg.yaml'
+    cfg.write_text('data:\n  vis: test.ms\n')
     config_parser.overwrite_config(str(cfg), conf_dict={'mykey': 42}, conf_sec='newsec')
     taskvals, _ = config_parser.parse_config(str(cfg))
     assert 'newsec' in taskvals
@@ -101,9 +100,9 @@ def test_overwrite_config_existing_section(minimal_config):
 
 
 def test_overwrite_config_string_value(tmp_path):
-    cfg = tmp_path / 'cfg.txt'
-    cfg.write_text('[data]\nvis = \'old.ms\'\n')
-    config_parser.overwrite_config(str(cfg), conf_dict={'vis': "'new.ms'"}, conf_sec='data')
+    cfg = tmp_path / 'cfg.yaml'
+    cfg.write_text('data:\n  vis: old.ms\n')
+    config_parser.overwrite_config(str(cfg), conf_dict={'vis': 'new.ms'}, conf_sec='data')
     assert config_parser.get_key(str(cfg), 'data', 'vis') == 'new.ms'
 
 
@@ -129,8 +128,8 @@ def test_validate_args_str(minimal_config):
 
 
 def test_validate_args_str_strips_trailing_slash(tmp_path):
-    cfg = tmp_path / 'cfg.txt'
-    cfg.write_text("[slurm]\npartition = 'Main/'\n")
+    cfg = tmp_path / 'cfg.yaml'
+    cfg.write_text("slurm:\n  partition: Main/\n")
     taskvals, _ = config_parser.parse_config(str(cfg))
     result = config_parser.validate_args(taskvals, 'slurm', 'partition', str)
     assert result == 'Main'
@@ -182,8 +181,8 @@ def test_typed_get_bool(minimal_config):
 
 
 def test_typed_get_float(tmp_path):
-    cfg = tmp_path / 'cfg.txt'
-    cfg.write_text("[crosscal]\nrobust = -0.5\n")
+    cfg = tmp_path / 'cfg.yaml'
+    cfg.write_text("crosscal:\n  robust: -0.5\n")
     taskvals, _ = config_parser.parse_config(str(cfg))
     result = config_parser.typed_get(taskvals, 'crosscal', 'robust', float)
     assert result == -0.5 and isinstance(result, float)
@@ -209,23 +208,23 @@ def test_typed_get_does_not_mutate(minimal_config):
 
 
 def test_typed_get_strips_trailing_slash(tmp_path):
-    cfg = tmp_path / 'cfg.txt'
-    cfg.write_text("[slurm]\ncontainer = '/some/path/'\n")
+    cfg = tmp_path / 'cfg.yaml'
+    cfg.write_text("slurm:\n  container: /some/path/\n")
     taskvals, _ = config_parser.parse_config(str(cfg))
     assert config_parser.typed_get(taskvals, 'slurm', 'container', str) == '/some/path'
 
 
 def test_typed_get_bad_int_raises(tmp_path):
-    cfg = tmp_path / 'cfg.txt'
-    cfg.write_text("[slurm]\nnodes = 'notanint'\n")
+    cfg = tmp_path / 'cfg.yaml'
+    cfg.write_text("slurm:\n  nodes: notanint\n")
     taskvals, _ = config_parser.parse_config(str(cfg))
     with pytest.raises(ValueError, match="cannot be converted to int"):
         config_parser.typed_get(taskvals, 'slurm', 'nodes', int)
 
 
 def test_typed_get_bad_bool_raises(tmp_path):
-    cfg = tmp_path / 'cfg.txt'
-    cfg.write_text("[slurm]\nsubmit = 'yes'\n")
+    cfg = tmp_path / 'cfg.yaml'
+    cfg.write_text("slurm:\n  submit: 'yes'\n")
     taskvals, _ = config_parser.parse_config(str(cfg))
     with pytest.raises(ValueError, match="is not a bool"):
         config_parser.typed_get(taskvals, 'slurm', 'submit', bool)

@@ -76,8 +76,7 @@ def main(args, taskvals):
     config_parser.overwrite_config(
         args['config'],
         conf_sec='run',
-        sec_comment='# Internal variables for pipeline execution',
-        conf_dict={'target_vis': "'{0}'".format(target_vis)},
+        conf_dict={'target_vis': target_vis},
     )
 
     # Also stamp out a sibling config file used by the target branch sbatches.
@@ -85,12 +84,12 @@ def main(args, taskvals):
     # against the target MMS rather than the cal MMS.
     import shutil
     main_cfg = args['config']
-    target_cfg = os.path.join(os.path.dirname(main_cfg) or '.', 'target_config.txt')
+    target_cfg = os.path.join(os.path.dirname(main_cfg) or '.', 'target_config.yaml')
     shutil.copyfile(main_cfg, target_cfg)
     config_parser.overwrite_config(
         target_cfg,
         conf_sec='data',
-        conf_dict={'vis': "'{0}'".format(target_vis)},
+        conf_dict={'vis': target_vis},
     )
 
 

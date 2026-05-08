@@ -14,18 +14,18 @@ from processMeerKAT.crosscal_scripts import concat_caltables as cc
 # ---------------------------------------------------------------------------
 
 CONFIG_TMPL = """\
-[crosscal]
-spw = '{spw}'
+crosscal:
+  spw: '{spw}'
 
-[data]
-vis = 'foo.ms'
+data:
+  vis: foo.ms
 """
 
 
 def _make_spw_dir(parent, dirname, spw_string, with_caldir=True):
     spw_dir = parent / dirname
     spw_dir.mkdir()
-    (spw_dir / 'default_config.txt').write_text(CONFIG_TMPL.format(spw=spw_string))
+    (spw_dir / 'default_config.yaml').write_text(CONFIG_TMPL.format(spw=spw_string))
     if with_caldir:
         (spw_dir / 'caltables').mkdir()
     return spw_dir

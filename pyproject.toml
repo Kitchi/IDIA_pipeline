@@ -9,9 +9,9 @@ description = "IDIA MeerKAT calibration and imaging pipeline"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.8"
-# Runtime dependencies are system-supplied (CASA / casatasks, SLURM, MPI).
-# No pip-installable dependencies are needed for the orchestrator itself.
-dependencies = []
+dependencies = [
+    "pyyaml>=6",
+]
 
 [project.scripts]
 processMeerKAT = "processMeerKAT.processMeerKAT:main"
@@ -27,7 +27,7 @@ where = ["src"]
 # are real subpackages (each has __init__.py) and are auto-discovered by
 # setuptools — no need to enumerate their .py files here.
 "processMeerKAT" = [
-    "default_config.txt",
+    "default_config.yaml",
     "RACS.fits.gz",
 ]
 

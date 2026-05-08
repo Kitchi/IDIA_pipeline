@@ -5,21 +5,19 @@
 
 Public API
 ----------
-parse_config(filename)              Parse an INI config → (dict, ConfigParser)
+parse_config(filename)              Parse a YAML config → (dict, dict)
 has_section(filename, section)
 has_key(filename, section, key)
 get_key(filename, section, key)
 overwrite_config(filename, ...)
 remove_section(filename, section)
-parse_spw(filename)                 Parse SPW bounds from [crosscal] section
+parse_spw(filename)                 Parse SPW bounds from crosscal section
 typed_get(config_dict, section, key, dtype, default=None)
     Extract and type-coerce a value from a parsed config dict.
-    Use this instead of the old validate_args alias.
 """
 
-import configparser
-import ast
 import logging
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -29,35 +27,28 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def parse_config(filename):
-    """Parse *filename* and return (taskvals_dict, ConfigParser).
+    """Parse *filename* and return (taskvals_dict, taskvals_dict).
 
-    Values are evaluated with ast.literal_eval so Python literals (int, bool,
-    list, str, …) come back as their proper types.  Strings must be quoted in
-    the config file.
+    Returns a 2-tuple for API compatibility; both elements are the same dict.
+    A missing file returns ({}, {}) to match legacy configparser behaviour.
+    Invalid YAML raises ValueError.
     """
-    config = configparser.ConfigParser(allow_no_value=True)
-    config.read(filename)
-
-    taskvals = {}
-    for section in config.sections():
-        taskvals[section] = {}
-        for option in config.options(section):
-            raw = config.get(section, option)
-            try:
-                taskvals[section][option] = ast.literal_eval(raw)
-            except (ValueError, SyntaxError):
-                raise ValueError(
-                    f"Cannot format field '{option}' in config file '{filename}', "
-                    f"which is currently set to {raw!r}. "
-                    "Ensure strings are in 'quotes'."
-                )
-
-    return taskvals, config
+    try:
+        with open(filename) as fh:
+            data = yaml.safe_load(fh)
+    except FileNotFoundError:
+        return {}, {}
+    except yaml.YAMLError as exc:
+        raise ValueError(
+            f"Cannot parse YAML config '{filename}': {exc}"
+        )
+    if data is None:
+        data = {}
+    return data, data
 
 
 # ---------------------------------------------------------------------------
-# Query helpers  (each re-parses; callers that need performance should call
-# parse_config once and work with the returned dict directly)
+# Query helpers
 # ---------------------------------------------------------------------------
 
 def has_section(filename, section):
@@ -85,29 +76,25 @@ def overwrite_config(filename, conf_dict=None, conf_sec='', sec_comment=''):
     """Write *conf_dict* into *conf_sec* of *filename*, creating the section if needed."""
     if conf_dict is None:
         conf_dict = {}
-    _, config = parse_config(filename)
+    taskvals, _ = parse_config(filename)
 
-    if conf_sec not in config.sections():
+    if conf_sec not in taskvals:
         logger.debug("Writing [%s] in '%s': %s", conf_sec, filename, conf_dict)
-        config.add_section(conf_sec)
+        taskvals[conf_sec] = {}
     else:
         logger.debug("Overwriting [%s] in '%s': %s", conf_sec, filename, conf_dict)
 
-    if sec_comment:
-        config.set(conf_sec, sec_comment)
-
-    for key, value in conf_dict.items():
-        config.set(conf_sec, key, str(value))
+    taskvals[conf_sec].update(conf_dict)
 
     with open(filename, 'w') as fh:
-        config.write(fh)
+        yaml.safe_dump(taskvals, fh, default_flow_style=False, allow_unicode=True)
 
 
 def remove_section(filename, section):
-    _, config = parse_config(filename)
-    config.remove_section(section)
+    taskvals, _ = parse_config(filename)
+    taskvals.pop(section, None)
     with open(filename, 'w') as fh:
-        config.write(fh)
+        yaml.safe_dump(taskvals, fh, default_flow_style=False, allow_unicode=True)
 
 
 # ---------------------------------------------------------------------------
@@ -180,11 +167,11 @@ validate_args = typed_get
 
 
 # ---------------------------------------------------------------------------
-# SPW parsing  (reads [crosscal] section for spw/nspw)
+# SPW parsing  (reads crosscal section for spw/nspw)
 # ---------------------------------------------------------------------------
 
 def parse_spw(filename):
-    """Return (low, high, unit, dirs) parsed from the [crosscal] spw key."""
+    """Return (low, high, unit, dirs) parsed from the crosscal spw key."""
     from spw import get_spw_bounds
 
     config_dict, _ = parse_config(filename)

@@ -80,7 +80,7 @@ def get_fields(MS):
 
     #Put any extra fields in extra_fields
     if len(extra_fields) > 0:
-        fieldIDs['extrafields'] = "'{0}'".format(','.join([str(extra_fields[i]) for i in range(len(extra_fields))]))
+        fieldIDs['extrafields'] = ','.join([str(extra_fields[i]) for i in range(len(extra_fields))])
 
     return fieldIDs
 
@@ -114,15 +114,15 @@ def get_field(MS,intent,fieldname,extra_fields,default=0,multiple=False):
 
     if fields.size == 0:
         logger.warning('Intent "{0}" not found in dataset "{1}". Setting to "{2}"'.format(intent,MS,default))
-        fieldIDs = "'{0}'".format(default)
+        fieldIDs = str(default)
     elif fields.size == 1:
-        fieldIDs = "'{0}'".format(fields[0])
+        fieldIDs = str(fields[0])
     else:
         logger.info('Multiple fields found with intent "{0}" in dataset "{1}" - {2}.'.format(intent,MS,fields))
 
         if multiple:
             logger.info('Will use all of them for "{0}".'.format(fieldname))
-            fieldIDs = "'{0}'".format(','.join([str(fields[i]) for i in range(fields.size)]))
+            fieldIDs = ','.join([str(fields[i]) for i in range(fields.size)])
         else:
             maxfield, maxscan = 0, 0
             scans = [msmd.scansforfield(ff) for ff in fields]
@@ -133,7 +133,7 @@ def get_field(MS,intent,fieldname,extra_fields,default=0,multiple=False):
                     maxfield = fields[ind]
 
             logger.warning('Only using field "{0}" for "{1}", which has the most scans ({2}).'.format(maxfield,fieldname,maxscan))
-            fieldIDs = "'{0}'".format(maxfield)
+            fieldIDs = str(maxfield)
 
             #Put any extra fields with the same intent in extra fields
             extras = list(set(fields) - set(extra_fields) - set([maxfield]))
@@ -499,7 +499,7 @@ def main():
     config_parser.overwrite_config(args.config, conf_dict={'dopol' : dopol}, conf_sec='run', sec_comment='# Internal variables for pipeline execution')
     config_parser.overwrite_config(args.config, conf_dict=threads, conf_sec='slurm')
     config_parser.overwrite_config(args.config, conf_dict=fields, conf_sec='fields')
-    config_parser.overwrite_config(args.config, conf_dict={'spw' : "'{0}'".format(SPW), 'nspw': write_nspw}, conf_sec='crosscal')
+    config_parser.overwrite_config(args.config, conf_dict={'spw': SPW, 'nspw': write_nspw}, conf_sec='crosscal')
 
     msmd.done()
 

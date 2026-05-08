@@ -2,6 +2,7 @@
 
 import os
 import pytest
+import yaml
 import processMeerKAT as pmk
 
 
@@ -86,64 +87,39 @@ class TestLinspace:
 
 class TestSpwSplit:
 
-    CFG_NAME = 'test_config.txt'
+    CFG_NAME = 'test_config.yaml'
 
     def _make_config(self, tmp_path, spw, nspw, badfreqranges=None):
-        """Helper: write a minimal config inside tmp_path and return its *basename*.
+        """Helper: write a minimal YAML config inside tmp_path and return its *basename*.
         Caller must os.chdir(tmp_path) before calling spw_split so the relative path resolves."""
         if badfreqranges is None:
             badfreqranges = []
-        cfg_text = f"""\
-[data]
-vis = 'test.ms'
-
-[fields]
-bpassfield = '0'
-fluxfield = '0'
-phasecalfield = '1'
-targetfields = '2'
-extrafields = ''
-
-[crosscal]
-minbaselines = 4
-chanbin = 1
-width = 1
-timeavg = '8s'
-createmms = True
-keepmms = True
-spw = '{spw}'
-nspw = {nspw}
-calcrefant = False
-refant = 'm059'
-standard = 'Stevens-Reynolds 2016'
-badants = []
-badfreqranges = {badfreqranges!r}
-
-[slurm]
-nodes = 1
-ntasks_per_node = 8
-plane = 1
-mem = 232
-partition = 'Main'
-exclude = ''
-time = '12:00:00'
-submit = False
-container = '/idia/software/containers/casa-6.5.0-modular.sif'
-mpi_wrapper = 'mpirun'
-name = ''
-dependencies = ''
-account = 'b03-idia-ag'
-reservation = ''
-modules = ['openmpi/4.0.3']
-verbose = False
-precal_scripts = []
-postcal_scripts = []
-scripts = [('validate_input.py', False, '')]
-
-[run]
-continue = True
-dopol = False
-"""
+        config = {
+            'data': {'vis': 'test.ms'},
+            'fields': {
+                'bpassfield': '0', 'fluxfield': '0', 'phasecalfield': '1',
+                'targetfields': '2', 'extrafields': '',
+            },
+            'crosscal': {
+                'minbaselines': 4, 'chanbin': 1, 'width': 1, 'timeavg': '8s',
+                'createmms': True, 'keepmms': True, 'spw': spw, 'nspw': nspw,
+                'calcrefant': False, 'refant': 'm059',
+                'standard': 'Stevens-Reynolds 2016',
+                'badants': [], 'badfreqranges': badfreqranges,
+            },
+            'slurm': {
+                'nodes': 1, 'ntasks_per_node': 8, 'plane': 1, 'mem': 232,
+                'partition': 'Main', 'exclude': '', 'time': '12:00:00', 'submit': False,
+                'container': '/idia/software/containers/casa-6.5.0-modular.sif',
+                'mpi_wrapper': 'mpirun', 'name': '', 'dependencies': '',
+                'account': 'b03-idia-ag', 'reservation': '',
+                'modules': ['openmpi/4.0.3'], 'verbose': False,
+                'precal_scripts': [], 'postcal_scripts': [],
+                'scripts': [['validate_input.py', False, '']],
+            },
+            'run': {'continue': True, 'dopol': False},
+        }
+        cfg_text = yaml.safe_dump(config, default_flow_style=False, allow_unicode=True)
         (tmp_path / self.CFG_NAME).write_text(cfg_text)
         return self.CFG_NAME  # relative path — caller must chdir first
 
