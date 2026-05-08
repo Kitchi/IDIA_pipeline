@@ -213,6 +213,14 @@ def parse_args():
     parser.add_argument("-c", "--container", metavar="path", required=False, type=str,
                         default=_FACILITY.default_container,
                         help="Singularity container [default: '{0}'].".format(_FACILITY.default_container))
+    parser.add_argument("--runner", metavar="prefix", required=False, type=str, default=None,
+                        help=(
+                            "Command prefix for every script invocation, overriding the facility "
+                            "default. Use '' for bare Python (CASA installed in the active env), "
+                            "'conda run -n mycasa --no-capture-output' for a conda env, or "
+                            "'singularity exec /path/to.sif' for an explicit container. "
+                            "When set, --container is cleared."
+                        ))
     parser.add_argument("-n", "--name", metavar="unique", required=False, type=str, default='',
                         help="Unique run name prefix for all job names.")
     parser.add_argument("-d", "--dependencies", metavar="list", required=False, type=str, default='',
@@ -307,6 +315,9 @@ def main():
     if args.build:
         if args.facility:
             _FACILITY = get_facility(args.facility)
+        if args.runner is not None:
+            _FACILITY = get_facility(_FACILITY.name, default_runner=args.runner, default_container='')
+            args.container = ''
         default_config(vars(args))
     if args.run:
         _FACILITY = load_facility_from_config(args.config)

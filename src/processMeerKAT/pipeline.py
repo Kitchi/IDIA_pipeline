@@ -254,11 +254,10 @@ def default_config(arg_dict):
     config_parser.overwrite_config(filename, conf_dict={'vis': MS}, conf_sec='data')
 
     from .processMeerKAT import _FACILITY
-    config_parser.overwrite_config(
-        filename,
-        conf_dict={'name': _FACILITY.name},
-        conf_sec='facility',
-    )
+    fac_conf = {'name': _FACILITY.name}
+    if _FACILITY.default_runner:
+        fac_conf['default_runner'] = _FACILITY.default_runner
+    config_parser.overwrite_config(filename, conf_dict=fac_conf, conf_sec='facility')
     config_parser.overwrite_config(
         filename,
         conf_dict={'dopol': arg_dict['dopol']},
