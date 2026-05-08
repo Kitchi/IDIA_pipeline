@@ -475,7 +475,7 @@ def main():
     npol = msmd.ncorrforpol()[0]
     parang = 0
     if 'phasecalfield' in fields:
-        calfield = msmd.fieldsforname(fields['phasecalfield'][1:-1])[0] #remove '' from field and convert to int
+        calfield = msmd.fieldsforname(fields['phasecalfield'])[0]
         parang = parang_coverage(args.MS, calfield)
 
     if npol < 4:
