@@ -53,7 +53,7 @@ def bookkeeping(visname):
     return get_calfiles(visname, caldir), caldir
 
 
-def get_all_spw_caldirs(top_dir, config_name='default_config.yaml'):
+def get_all_spw_caldirs(top_dir, config_name='default_config.toml'):
     """Discover the per-SPW caldirs sitting under a top-level run directory.
 
     Used by postcal scripts (concat_caltables, apply_to_target) to find every
@@ -65,7 +65,7 @@ def get_all_spw_caldirs(top_dir, config_name='default_config.yaml'):
     top_dir : str
         Top-level pipeline directory (the parent of the per-SPW subdirs).
     config_name : str
-        Filename of the per-SPW config file (defaults to ``default_config.yaml``).
+        Filename of the per-SPW config file (defaults to ``default_config.toml``).
 
     Returns
     -------

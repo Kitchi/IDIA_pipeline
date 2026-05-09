@@ -18,8 +18,8 @@ LOG_DIR = 'logs'
 CALIB_SCRIPTS_DIR = 'crosscal_scripts'
 AUX_SCRIPTS_DIR = 'aux_scripts'
 SELFCAL_SCRIPTS_DIR = 'selfcal_scripts'
-CONFIG = 'default_config.yaml'
-PIPELINE_STATE = 'pipeline_state.yaml'
+CONFIG = 'default_config.toml'
+PIPELINE_STATE = 'pipeline_state.toml'
 MASTER_SCRIPT = 'submit_pipeline.sh'
 SPW_PREFIX = '*:'
 
@@ -52,37 +52,38 @@ SLURM_CONFIG_KEYS = [
     'verbose', 'modules',
 ] + SLURM_CONFIG_STR_KEYS
 
-# Default calibration script lists
-# Each entry: (script_name, threadsafe, container_override)
+# Default calibration script lists.
+# Each entry is a dict with keys: script (str), mpi (bool), and optionally
+# container (str) to override the global slurm.container for that step.
 #
 # DAG (multi-SPW): precal_scripts run once at top level. Two parallel branches
 # follow: per-SPW calibrator solve chains run `scripts`; a single monolithic
 # target MMS runs `target_scripts`. postcal_scripts run after both branches
 # join, joining the per-SPW caltables and applying them to the target.
 PRECAL_SCRIPTS = [
-    ('partition.py', True, ''),
-    ('partition_target.py', True, ''),
+    {'script': 'partition.py', 'mpi': True},
+    {'script': 'partition_target.py', 'mpi': True},
 ]
 POSTCAL_SCRIPTS = [
-    ('concat_caltables.py', False, ''),
-    ('apply_to_target.py', True, ''),
-    ('selfcal_part1.py', True, ''),
-    ('selfcal_part2.py', False, ''),
-    ('science_image.py', True, ''),
+    {'script': 'concat_caltables.py', 'mpi': False},
+    {'script': 'apply_to_target.py', 'mpi': True},
+    {'script': 'selfcal_part1.py', 'mpi': True},
+    {'script': 'selfcal_part2.py', 'mpi': False},
+    {'script': 'science_image.py', 'mpi': True},
 ]
 SCRIPTS = [
-    ('validate_input.py', False, ''),
-    ('flag_round_1.py', True, ''),
-    ('setjy.py', True, ''),
-    ('xx_yy_solve.py', False, ''),
-    ('xx_yy_apply.py', True, ''),
-    ('flag_round_2.py', True, ''),
-    ('xx_yy_solve.py', False, ''),
-    ('xx_yy_apply.py', True, ''),
+    {'script': 'validate_input.py', 'mpi': False},
+    {'script': 'flag_round_1.py', 'mpi': True},
+    {'script': 'setjy.py', 'mpi': True},
+    {'script': 'xx_yy_solve.py', 'mpi': False},
+    {'script': 'xx_yy_apply.py', 'mpi': True},
+    {'script': 'flag_round_2.py', 'mpi': True},
+    {'script': 'xx_yy_solve.py', 'mpi': False},
+    {'script': 'xx_yy_apply.py', 'mpi': True},
 ]
 TARGET_SCRIPTS = [
-    ('validate_input.py', False, ''),
-    ('flag_round_1.py', True, ''),
+    {'script': 'validate_input.py', 'mpi': False},
+    {'script': 'flag_round_1.py', 'mpi': True},
 ]
 
 # Facility-specific defaults (these match IlifuFacility; overridden at runtime)

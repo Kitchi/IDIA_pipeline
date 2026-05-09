@@ -15,7 +15,7 @@ def _read(path):
 def test_master_includes_partition_target_id_extraction(tmp_pipeline_dir):
     out = tmp_pipeline_dir / 'master.sh'
     write_spw_master(
-        str(out), config='pipeline_state.yaml',
+        str(out), config='pipeline_state.toml',
         SPWs='*:880~933MHz,*:960~1010MHz',
         precal_scripts=['partition.sbatch', 'partition_target.sbatch'],
         postcal_scripts=['concat_caltables.sbatch'],
@@ -31,7 +31,7 @@ def test_master_includes_partition_target_id_extraction(tmp_pipeline_dir):
 def test_master_emits_target_branch_dependent_on_target_partition(tmp_pipeline_dir):
     out = tmp_pipeline_dir / 'master.sh'
     write_spw_master(
-        str(out), config='pipeline_state.yaml',
+        str(out), config='pipeline_state.toml',
         SPWs='*:880~933MHz,*:960~1010MHz',
         precal_scripts=['partition.sbatch', 'partition_target.sbatch'],
         postcal_scripts=['concat_caltables.sbatch'],
@@ -51,7 +51,7 @@ def test_master_emits_target_branch_dependent_on_target_partition(tmp_pipeline_d
 def test_master_postcal_joins_spw_and_target_branches(tmp_pipeline_dir):
     out = tmp_pipeline_dir / 'master.sh'
     write_spw_master(
-        str(out), config='pipeline_state.yaml',
+        str(out), config='pipeline_state.toml',
         SPWs='*:880~933MHz,*:960~1010MHz',
         precal_scripts=['partition.sbatch', 'partition_target.sbatch'],
         postcal_scripts=['concat_caltables.sbatch', 'apply_to_target.sbatch'],
@@ -68,7 +68,7 @@ def test_master_postcal_joins_spw_and_target_branches(tmp_pipeline_dir):
 def test_master_no_target_branch_when_target_scripts_empty(tmp_pipeline_dir):
     out = tmp_pipeline_dir / 'master.sh'
     write_spw_master(
-        str(out), config='pipeline_state.yaml',
+        str(out), config='pipeline_state.toml',
         SPWs='*:880~933MHz,*:960~1010MHz',
         precal_scripts=['partition.sbatch', 'partition_target.sbatch'],
         postcal_scripts=['concat_caltables.sbatch'],
@@ -87,7 +87,7 @@ def test_master_no_target_branch_when_partition_target_missing(tmp_pipeline_dir)
     """Even with target_scripts, if partition_target.sbatch isn't in precal, skip the branch."""
     out = tmp_pipeline_dir / 'master.sh'
     write_spw_master(
-        str(out), config='pipeline_state.yaml',
+        str(out), config='pipeline_state.toml',
         SPWs='*:880~933MHz,*:960~1010MHz',
         precal_scripts=['partition.sbatch'],
         postcal_scripts=['concat_caltables.sbatch'],
@@ -104,7 +104,7 @@ def test_master_partition_id_is_first_when_partition_first(tmp_pipeline_dir):
     """The cut field index for partitionID must reflect partition's position in precal."""
     out = tmp_pipeline_dir / 'master.sh'
     write_spw_master(
-        str(out), config='pipeline_state.yaml',
+        str(out), config='pipeline_state.toml',
         SPWs='*:880~933MHz',
         precal_scripts=['partition_target.sbatch', 'partition.sbatch'],  # reversed order
         postcal_scripts=[],

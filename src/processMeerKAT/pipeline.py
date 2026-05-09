@@ -96,7 +96,7 @@ def format_args(config, submit, quiet, dependencies, justrun):
         nspw = 1
 
     def _names(lst):
-        return [s[0] for s in lst]
+        return [s['script'] for s in lst]
 
     if config_parser.has_section(config, 'selfcal') and (
         'selfcal_part1.py' in _names(kwargs['postcal_scripts'])
@@ -144,9 +144,10 @@ def format_args(config, submit, quiet, dependencies, justrun):
     if nspw == 1:
         if len(kwargs['precal_scripts']) > 0 or len(kwargs['postcal_scripts']) > 0:
             logger.warning('Appending pre/postcal_scripts to scripts since nspw=1.')
-            if ('calc_refant.py' in _names(kwargs['precal_scripts'])
+            precal_names = _names(kwargs['precal_scripts'])
+            if ('calc_refant.py' in precal_names
                     and 'calc_refant.py' in _names(kwargs['scripts'])):
-                kwargs['precal_scripts'].pop(_names(kwargs['precal_scripts']).index('calc_refant.py'))
+                kwargs['precal_scripts'].pop(precal_names.index('calc_refant.py'))
 
             scripts = kwargs['precal_scripts'] + kwargs['scripts'] + kwargs['postcal_scripts']
             config_parser.overwrite_config(config, conf_dict={'scripts': scripts}, conf_sec='slurm')
@@ -168,11 +169,13 @@ def format_args(config, submit, quiet, dependencies, justrun):
     kwargs['account'] = _FACILITY.validate_account(kwargs.get('account'), config)
     _FACILITY.validate_reservation(kwargs.get('reservation', ''), kwargs, config)
 
-    kwargs['scripts'] = [check_path(i[0]) for i in scripts]
-    kwargs['threadsafe'] = [i[1] for i in scripts]
-    kwargs['containers'] = [check_path(i[2]) for i in scripts]
+    kwargs['scripts'] = [check_path(i['script']) for i in scripts]
+    kwargs['threadsafe'] = [i['mpi'] for i in scripts]
+    kwargs['containers'] = [check_path(i.get('container', '')) for i in scripts]
     kwargs['target_scripts'] = [
-        (check_path(i[0]), i[1], check_path(i[2])) for i in target_scripts
+        {'script': check_path(i['script']), 'mpi': i['mpi'],
+         'container': check_path(i.get('container', ''))}
+        for i in target_scripts
     ]
 
     if not crosscal_kwargs['createmms']:
@@ -273,7 +276,7 @@ def default_config(arg_dict):
             config_parser.remove_section(filename, 'image')
             remove_scripts += ['science_image.py']
 
-        scripts = [s for s in arg_dict['postcal_scripts'] if s[0] not in remove_scripts]
+        scripts = [s for s in arg_dict['postcal_scripts'] if s['script'] not in remove_scripts]
         config_parser.overwrite_config(filename, conf_dict={'postcal_scripts': scripts}, conf_sec='slurm')
 
     if not arg_dict['nofields']:
@@ -302,13 +305,13 @@ def default_config(arg_dict):
     if dopol:
         count = 0
         for ind, ss in enumerate(arg_dict['scripts']):
-            if ss[0] in ('xx_yy_solve.py', 'xx_yy_apply.py'):
+            if ss['script'] in ('xx_yy_solve.py', 'xx_yy_apply.py'):
                 count += 1
             if count > 2:
-                if ss[0] == 'xx_yy_solve.py':
-                    arg_dict['scripts'][ind] = ('xy_yx_solve.py', arg_dict['scripts'][ind][1], arg_dict['scripts'][ind][2])
-                if ss[0] == 'xx_yy_apply.py':
-                    arg_dict['scripts'][ind] = ('xy_yx_apply.py', arg_dict['scripts'][ind][1], arg_dict['scripts'][ind][2])
+                if ss['script'] == 'xx_yy_solve.py':
+                    arg_dict['scripts'][ind] = {**ss, 'script': 'xy_yx_solve.py'}
+                if ss['script'] == 'xx_yy_apply.py':
+                    arg_dict['scripts'][ind] = {**ss, 'script': 'xy_yx_apply.py'}
         config_parser.overwrite_config(filename, conf_dict={'scripts': arg_dict['scripts']}, conf_sec='slurm')
 
     logger.info('Config "{0}" generated.'.format(filename))

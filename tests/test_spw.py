@@ -2,8 +2,8 @@
 
 import os
 import pytest
-import yaml
 import processMeerKAT as pmk
+from processMeerKAT.config_parser import _dump_toml
 
 
 # ---------------------------------------------------------------------------
@@ -87,10 +87,10 @@ class TestLinspace:
 
 class TestSpwSplit:
 
-    CFG_NAME = 'test_config.yaml'
+    CFG_NAME = 'test_config.toml'
 
     def _make_config(self, tmp_path, spw, nspw, badfreqranges=None):
-        """Helper: write a minimal YAML config inside tmp_path and return its *basename*.
+        """Helper: write a minimal TOML config inside tmp_path and return its *basename*.
         Caller must os.chdir(tmp_path) before calling spw_split so the relative path resolves."""
         if badfreqranges is None:
             badfreqranges = []
@@ -115,12 +115,11 @@ class TestSpwSplit:
                 'account': 'b03-idia-ag', 'reservation': '',
                 'modules': ['openmpi/4.0.3'], 'verbose': False,
                 'precal_scripts': [], 'postcal_scripts': [],
-                'scripts': [['validate_input.py', False, '']],
+                'scripts': [{'script': 'validate_input.py', 'mpi': False}],
             },
             'run': {'continue': True, 'dopol': False},
         }
-        cfg_text = yaml.safe_dump(config, default_flow_style=False, allow_unicode=True)
-        (tmp_path / self.CFG_NAME).write_text(cfg_text)
+        (tmp_path / self.CFG_NAME).write_text(_dump_toml(config))
         return self.CFG_NAME  # relative path — caller must chdir first
 
     def test_creates_correct_number_of_directories(self, tmp_path):
