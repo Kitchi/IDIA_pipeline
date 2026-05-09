@@ -5,7 +5,7 @@
 
 Public API
 ----------
-parse_config(filename)              Parse a YAML config → (dict, dict)
+parse_config(filename)              Parse a TOML config → (dict, dict)
 has_section(filename, section)
 has_key(filename, section, key)
 get_key(filename, section, key)
@@ -17,9 +17,62 @@ typed_get(config_dict, section, key, dtype, default=None)
 """
 
 import logging
-import yaml
+
+try:
+    import tomllib
+except ImportError:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        raise ImportError(
+            "Python < 3.11 requires the 'tomli' package: pip install tomli"
+        )
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# TOML writer (tomllib is read-only; we use a focused custom serializer)
+# ---------------------------------------------------------------------------
+
+def _toml_scalar(v):
+    if v is None:
+        return '""'
+    if isinstance(v, bool):
+        return 'true' if v else 'false'
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, float):
+        return repr(v)
+    if isinstance(v, str):
+        escaped = v.replace('\\', '\\\\').replace('"', '\\"')
+        return f'"{escaped}"'
+    raise TypeError(f"Cannot serialize {type(v).__name__} as TOML scalar: {v!r}")
+
+
+def _toml_value(v):
+    if isinstance(v, list):
+        if not v:
+            return '[]'
+        if all(isinstance(item, dict) for item in v):
+            rows = []
+            for item in v:
+                pairs = ', '.join(f'{k} = {_toml_scalar(iv)}' for k, iv in item.items())
+                rows.append(f'  {{{pairs}}}')
+            return '[\n' + ',\n'.join(rows) + ',\n]'
+        return '[' + ', '.join(_toml_scalar(i) for i in v) + ']'
+    return _toml_scalar(v)
+
+
+def _dump_toml(data):
+    """Serialize a two-level {section: {key: value}} dict to a TOML string."""
+    parts = []
+    for section, vals in data.items():
+        parts.append(f'[{section}]')
+        for key, val in vals.items():
+            parts.append(f'{key} = {_toml_value(val)}')
+        parts.append('')
+    return '\n'.join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -31,16 +84,16 @@ def parse_config(filename):
 
     Returns a 2-tuple for API compatibility; both elements are the same dict.
     A missing file returns ({}, {}) to match legacy configparser behaviour.
-    Invalid YAML raises ValueError.
+    Invalid TOML raises ValueError.
     """
     try:
-        with open(filename) as fh:
-            data = yaml.safe_load(fh)
+        with open(filename, 'rb') as fh:
+            data = tomllib.load(fh)
     except FileNotFoundError:
         return {}, {}
-    except yaml.YAMLError as exc:
+    except tomllib.TOMLDecodeError as exc:
         raise ValueError(
-            f"Cannot parse YAML config '{filename}': {exc}"
+            f"Cannot parse TOML config '{filename}': {exc}"
         )
     if data is None:
         data = {}
@@ -86,15 +139,15 @@ def overwrite_config(filename, conf_dict=None, conf_sec='', sec_comment=''):
 
     taskvals[conf_sec].update(conf_dict)
 
-    with open(filename, 'w') as fh:
-        yaml.safe_dump(taskvals, fh, default_flow_style=False, allow_unicode=True)
+    with open(filename, 'w', encoding='utf-8') as fh:
+        fh.write(_dump_toml(taskvals))
 
 
 def remove_section(filename, section):
     taskvals, _ = parse_config(filename)
     taskvals.pop(section, None)
-    with open(filename, 'w') as fh:
-        yaml.safe_dump(taskvals, fh, default_flow_style=False, allow_unicode=True)
+    with open(filename, 'w', encoding='utf-8') as fh:
+        fh.write(_dump_toml(taskvals))
 
 
 # ---------------------------------------------------------------------------

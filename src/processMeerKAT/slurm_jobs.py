@@ -267,14 +267,14 @@ def write_bash_job_script(master, filename, extn, do, purpose,
                           dir='jobScripts', echo=True, prefix=''):
     """Write a single bash utility script (kill, summary, errors, etc.)."""
     fname = '{0}/{1}{2}'.format(dir, filename, extn)
-    do2 = ' ./{0}/{1}{2}{3} \\$@ \\"'.format(dir, prefix, filename, extn) if prefix != '' else ' '
+    do2 = ' ./{0}/{1}{2}{3} \\$@"'.format(dir, prefix, filename, extn) if prefix != '' else ' '
     master.write('\n#Create {0}.sh file, make executable and symlink to current version\n'.format(filename))
     master.write('echo "#!/bin/bash" > {0}\n'.format(fname))
     master.write('{0}{1}>> {2}\n'.format(do, do2, fname))
     master.write('chmod +x {0}\n'.format(fname))
     master.write('ln -f -s {0} {1}.sh\n'.format(fname, filename))
     if echo:
-        master.write('echo Run ./{0}.sh to {1}.\n'.format(filename, purpose))
+        master.write('echo "Run ./{0}.sh to {1}."\n'.format(filename, purpose))
 
 
 def write_all_bash_jobs_scripts(master, extn, IDs, dir='jobScripts',
@@ -399,6 +399,7 @@ def write_master(filename, config, scripts=[], submit=False,
 
     master.write('\n#Output message and create {0} directory\n'.format(dir))
     master.write('echo Submitted sbatch jobs with following IDs: $IDs\n')
+    master.write('echo "$IDs" > submitted_jobs.txt\n')
     master.write('mkdir -p {0}\n'.format(dir))
 
     master.write('\n#Add time as extn to this pipeline run, to give unique filenames')
@@ -562,13 +563,13 @@ def write_spw_master(filename, config, SPWs, precal_scripts, postcal_scripts,
     master.write('\necho For all jobs within the {0} SPW directories:\n'.format(len(SPWs.split(','))))
     header = '-' * (109 + pad_length)
 
-    do = """echo "for f in {{{spws},}}; do if [ -d \\$f ]; then cd \\$f; ./{dir}/{ks}{extn}; cd ..; else echo Directory \\$f doesn\\'t exist; fi; done;{suffix}""".format(
-        spws=SPWs, dir=dir, ks=killScript, extn=extn,
-        suffix='' if toplevel else ' \\"'
+    close = '' if toplevel else '"'
+    do = 'echo "for f in {{{spws},}}; do if [ -d \\$f ]; then cd \\$f; ./{dir}/{ks}{extn}; cd ..; else echo Directory \\$f doesn\'t exist; fi; done;{close}'.format(
+        spws=SPWs, dir=dir, ks=killScript, extn=extn, close=close
     )
     write_bash_job_script(master, killScript, extn, do, 'kill all the jobs', dir=dir, prefix=prefix)
 
-    do = """echo "for f in {{{spws},}}; do if [ -d \\$f ]; then cd \\$f; ./{dir}/{cs}{extn}; cd ..; else echo Directory \\$f doesn\\'t exist; fi; done; \\\"""".format(
+    do = 'echo "for f in {{{spws},}}; do if [ -d \\$f ]; then cd \\$f; ./{dir}/{cs}{extn}; cd ..; else echo Directory \\$f doesn\'t exist; fi; done;"'.format(
         spws=SPWs, dir=dir, cs=cleanupScript, extn=extn
     )
     write_bash_job_script(master, cleanupScript, extn, do, 'remove the MMSs/MSs within SPW directories (after pipeline has run)', dir=dir)
@@ -585,7 +586,7 @@ def write_spw_master(filename, config, SPWs, precal_scripts, postcal_scripts,
     if toplevel:
         do += "echo -n 'All SPWs: '; pwd; "
     else:
-        do += ' \\"'
+        do += '"'
     write_bash_job_script(master, summaryScript, extn, do, 'view the progress (for running or failed jobs)', dir=dir, prefix=prefix)
 
     do = do_tmpl.format(
@@ -595,7 +596,7 @@ def write_spw_master(filename, config, SPWs, precal_scripts, postcal_scripts,
     if toplevel:
         do += "echo -n 'All SPWs: '; pwd; "
     else:
-        do += ' \\"'
+        do += '"'
     write_bash_job_script(master, fullSummaryScript, extn, do, 'view the progress (for all jobs)', dir=dir, prefix=prefix)
 
     header = '-' * (90 + pad_length)
@@ -605,7 +606,7 @@ def write_spw_master(filename, config, SPWs, precal_scripts, postcal_scripts,
     if toplevel:
         do += "echo -n 'All SPWs: '; pwd; "
     else:
-        do += ' \\"'
+        do += '"'
     write_bash_job_script(master, errorScript, extn, do, 'find errors (after pipeline has run)', dir=dir, prefix=prefix)
 
     do = do_tmpl.format(
@@ -614,9 +615,13 @@ def write_spw_master(filename, config, SPWs, precal_scripts, postcal_scripts,
     if toplevel:
         do += "echo -n 'All SPWs: '; pwd; "
     else:
-        do += ' \\"'
+        do += '"'
     write_bash_job_script(master, timingScript, extn, do, 'display start and end timestamps (after pipeline has run)', dir=dir, prefix=prefix)
 
+    id_vars = ['echo "$allSPWIDs"', 'echo "$IDs"']
+    if target_branch_active:
+        id_vars.append('echo "$targetIDs"')
+    master.write('\n{ ' + '; '.join(id_vars) + '; } > submitted_jobs.txt\n')
     master.close()
     os.chmod(filename, 509)
 
@@ -683,13 +688,16 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
         )
 
     # Target branch: same scripts can appear here under a `target_` prefix and
-    # are pointed at `target_config.txt` (written by partition_target.py at
+    # are pointed at `target_config.toml` (written by partition_target.py at
     # runtime) so they read the monolithic target MMS instead of the cal MMSes.
     target_sbatch_names = []
-    for (script_path, ts, ctr) in target_scripts:
+    for entry in target_scripts:
+        script_path = entry['script']
+        ts = entry['mpi']
+        ctr = entry.get('container', '')
         jobname = 'target_' + os.path.splitext(os.path.split(script_path)[1])[0]
         write_sbatch(
-            script_path, '--config target_config.txt',
+            script_path, '--config target_config.toml',
             nodes=nodes if ts else 1,
             tasks=ntasks_per_node if ts else 1,
             mem=mem,

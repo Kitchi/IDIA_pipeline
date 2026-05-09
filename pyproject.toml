@@ -8,9 +8,9 @@ version = "2.0"
 description = "IDIA MeerKAT calibration and imaging pipeline"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
-    "pyyaml>=6",
+    "tomli>=2.0; python_version < '3.11'",
 ]
 
 [project.scripts]
@@ -27,7 +27,7 @@ where = ["src"]
 # are real subpackages (each has __init__.py) and are auto-discovered by
 # setuptools — no need to enumerate their .py files here.
 "processMeerKAT" = [
-    "default_config.yaml",
+    "default_config.toml",
     "RACS.fits.gz",
 ]
 
@@ -37,7 +37,10 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -m 'not integration'"
 filterwarnings = [
     "ignore::DeprecationWarning",
+]
+markers = [
+    "integration: end-to-end tests requiring a real SLURM cluster (run with -m integration)",
 ]
