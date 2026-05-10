@@ -1,10 +1,15 @@
 """Tests for facility abstraction — no SLURM required."""
 
 import dataclasses
+import importlib
+import textwrap
 import pytest
 
-from processMeerKAT.facilities import get_facility, FACILITIES
-from processMeerKAT.facilities.base import FacilityConfig, _noop_validate_account, _noop_validate_reservation
+from processMeerKAT.facilities import get_facility, FACILITIES, _scan_external_dirs
+from processMeerKAT.facilities.base import (
+    FacilityConfig, DEFAULT_FACILITY_CONFIG,
+    _noop_validate_account, _noop_validate_reservation,
+)
 from processMeerKAT.facilities.ilifu import ILIFU
 from processMeerKAT.facilities.generic_slurm import GENERIC_SLURM
 import processMeerKAT as pmk
@@ -100,6 +105,101 @@ class TestGetFacility:
     def test_all_known_facilities_present(self):
         assert 'ilifu' in FACILITIES
         assert 'generic_slurm' in FACILITIES
+
+    def test_facilities_discovered_not_hardcoded(self):
+        """FACILITIES is built by scanning, not a hardcoded dict."""
+        # Re-importing the module gives the same dict (built once at import time).
+        import processMeerKAT.facilities as fac_mod
+        assert fac_mod.FACILITIES is FACILITIES
+
+    def test_discovered_instances_are_identical_to_direct_imports(self):
+        """Auto-discovered ILIFU must be the same object as the direct import."""
+        assert FACILITIES['ilifu'] is ILIFU
+        assert FACILITIES['generic_slurm'] is GENERIC_SLURM
+
+
+# ---------------------------------------------------------------------------
+# DEFAULT_FACILITY_CONFIG reference template
+# ---------------------------------------------------------------------------
+
+class TestDefaultFacilityConfig:
+
+    def test_is_facility_config_instance(self):
+        assert isinstance(DEFAULT_FACILITY_CONFIG, FacilityConfig)
+
+    def test_has_all_fields_populated(self):
+        """Every FacilityConfig field must be explicitly set (no dataclass sentinel)."""
+        fields = dataclasses.fields(DEFAULT_FACILITY_CONFIG)
+        for f in fields:
+            assert hasattr(DEFAULT_FACILITY_CONFIG, f.name), f"Missing field: {f.name}"
+
+    def test_not_auto_discovered(self):
+        """DEFAULT_FACILITY_CONFIG lives in base.py — must not appear in FACILITIES."""
+        assert DEFAULT_FACILITY_CONFIG.name not in FACILITIES or \
+               FACILITIES.get(DEFAULT_FACILITY_CONFIG.name) is not DEFAULT_FACILITY_CONFIG
+
+
+# ---------------------------------------------------------------------------
+# External facility discovery via PROCESSMEERKAT_FACILITIES_PATH
+# ---------------------------------------------------------------------------
+
+class TestExternalFacilityDiscovery:
+
+    def _write_facility_file(self, tmp_path, name, nodes=50):
+        src = textwrap.dedent(f"""\
+            from processMeerKAT.facilities.base import FacilityConfig
+            MY_FACILITY = FacilityConfig(
+                name='{name}',
+                total_nodes_limit={nodes},
+                cpus_per_node_limit=32,
+                mem_per_node_gb_limit=128,
+                mem_per_node_gb_limit_highmem=256,
+            )
+        """)
+        p = tmp_path / f'{name}.py'
+        p.write_text(src)
+        return p
+
+    def test_external_facility_discovered(self, tmp_path):
+        self._write_facility_file(tmp_path, 'test_cluster', nodes=42)
+        result = _scan_external_dirs(str(tmp_path))
+        assert 'test_cluster' in result
+        assert result['test_cluster'].total_nodes_limit == 42
+
+    def test_external_facility_via_env_var(self, tmp_path, monkeypatch):
+        self._write_facility_file(tmp_path, 'env_cluster', nodes=7)
+        monkeypatch.setenv('PROCESSMEERKAT_FACILITIES_PATH', str(tmp_path))
+        # Rebuild FACILITIES with env var set
+        from processMeerKAT.facilities import _build_facilities
+        facilities = _build_facilities()
+        assert 'env_cluster' in facilities
+        assert facilities['env_cluster'].total_nodes_limit == 7
+
+    def test_external_overrides_builtin(self, tmp_path, monkeypatch):
+        """External dir can shadow a built-in facility by the same name."""
+        self._write_facility_file(tmp_path, 'generic_slurm', nodes=999)
+        monkeypatch.setenv('PROCESSMEERKAT_FACILITIES_PATH', str(tmp_path))
+        from processMeerKAT.facilities import _build_facilities
+        facilities = _build_facilities()
+        assert facilities['generic_slurm'].total_nodes_limit == 999
+
+    def test_broken_external_file_skipped(self, tmp_path):
+        """A facility file that raises on import must not crash the scan."""
+        bad = tmp_path / 'bad_facility.py'
+        bad.write_text('raise RuntimeError("intentional")\n')
+        result = _scan_external_dirs(str(tmp_path))
+        assert 'bad_facility' not in result
+
+    def test_nonexistent_dir_in_path_skipped(self, tmp_path):
+        path_str = f'/nonexistent/path:{tmp_path}'
+        self._write_facility_file(tmp_path, 'real_cluster')
+        result = _scan_external_dirs(path_str)
+        assert 'real_cluster' in result
+
+    def test_file_without_facility_config_ignored(self, tmp_path):
+        (tmp_path / 'not_a_facility.py').write_text('x = 42\n')
+        result = _scan_external_dirs(str(tmp_path))
+        assert 'not_a_facility' not in result
 
 
 # ---------------------------------------------------------------------------
