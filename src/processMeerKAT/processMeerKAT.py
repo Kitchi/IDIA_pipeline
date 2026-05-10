@@ -273,15 +273,14 @@ def parse_args():
         if not os.path.exists(args.config):
             parser.error("Input config file '{0}' not found. Please set [-C --config] or write a new one with [-B --build].".format(args.config))
 
-    # Remove default lists if user provided custom ones
-    if len(args.scripts) > len(SCRIPTS):
-        [args.scripts.pop(0) for _ in range(len(SCRIPTS))]
-    if len(args.precal_scripts) > len(PRECAL_SCRIPTS):
-        [args.precal_scripts.pop(0) for _ in range(len(PRECAL_SCRIPTS))]
-    if len(args.postcal_scripts) > len(POSTCAL_SCRIPTS):
-        [args.postcal_scripts.pop(0) for _ in range(len(POSTCAL_SCRIPTS))]
-    if len(args.target_scripts) > len(TARGET_SCRIPTS):
-        [args.target_scripts.pop(0) for _ in range(len(TARGET_SCRIPTS))]
+    def _trim_defaults(attr, default):
+        if len(attr) > len(default):
+            del attr[:len(default)]
+
+    _trim_defaults(args.scripts, SCRIPTS)
+    _trim_defaults(args.precal_scripts, PRECAL_SCRIPTS)
+    _trim_defaults(args.postcal_scripts, POSTCAL_SCRIPTS)
+    _trim_defaults(args.target_scripts, TARGET_SCRIPTS)
 
     validate_args(vars(args), args.config, parser=parser)
     return args

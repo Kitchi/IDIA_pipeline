@@ -37,29 +37,29 @@ def check_path(path, update=False):
     Searches CWD, parent directory, pipeline script directories, and bash PATH.
     Raises IOError if not found.
     """
-    newpath = path
+    if os.path.exists(path):
+        return (os.path.join(os.getcwd(), path) if update and path[0] != '/' else path)
 
-    if os.path.exists(path) and path[0] != '/':
-        newpath = '{0}/{1}'.format(os.getcwd(), path)
-    if not os.path.exists(path) and path != '':
-        if os.path.exists('../{0}'.format(path)):
-            newpath = '../{0}'.format(path)
-        elif os.path.exists('{0}/{1}'.format(SCRIPT_DIR, path)):
-            newpath = '{0}/{1}'.format(SCRIPT_DIR, path)
-        elif os.path.exists('{0}/{1}/{2}'.format(SCRIPT_DIR, CALIB_SCRIPTS_DIR, path)):
-            newpath = '{0}/{1}/{2}'.format(SCRIPT_DIR, CALIB_SCRIPTS_DIR, path)
-        elif os.path.exists('{0}/{1}/{2}'.format(SCRIPT_DIR, AUX_SCRIPTS_DIR, path)):
-            newpath = '{0}/{1}/{2}'.format(SCRIPT_DIR, AUX_SCRIPTS_DIR, path)
-        elif os.path.exists('{0}/{1}/{2}'.format(SCRIPT_DIR, SELFCAL_SCRIPTS_DIR, path)):
-            newpath = '{0}/{1}/{2}'.format(SCRIPT_DIR, SELFCAL_SCRIPTS_DIR, path)
-        elif os.path.exists(check_bash_path(path)):
-            newpath = check_bash_path(path)
-        else:
-            raise IOError('File "{0}" not found.'.format(path))
+    if path == '':
+        return path
 
-    if update:
-        return newpath
-    return path
+    search_paths = [
+        '../{0}',
+        os.path.join(SCRIPT_DIR, '{0}'),
+        os.path.join(SCRIPT_DIR, CALIB_SCRIPTS_DIR, '{0}'),
+        os.path.join(SCRIPT_DIR, AUX_SCRIPTS_DIR, '{0}'),
+        os.path.join(SCRIPT_DIR, SELFCAL_SCRIPTS_DIR, '{0}'),
+    ]
+    for pattern in search_paths:
+        candidate = pattern.format(path)
+        if os.path.exists(candidate):
+            return candidate if update else path
+
+    bash_path = check_bash_path(path)
+    if os.path.exists(bash_path):
+        return bash_path if update else path
+
+    raise IOError('File "{0}" not found.'.format(path))
 
 
 # ---------------------------------------------------------------------------

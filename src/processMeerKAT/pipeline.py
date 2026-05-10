@@ -18,6 +18,30 @@ from .slurm_jobs import srun, write_command, write_jobs, check_path
 logger = logging.getLogger(__name__)
 
 
+def _extract_script_names(script_list):
+    """Extract the 'script' field from a list of script dicts."""
+    return [s['script'] for s in script_list]
+
+
+def _set_threadsafe_for_scripts(scripts, threadsafe, script_names):
+    """Set threadsafe=True for each script_name found in scripts list."""
+    for name in script_names:
+        if name in scripts:
+            threadsafe[scripts.index(name)] = True
+
+
+def _replace_xx_yy_with_xy_yx(scripts):
+    """After 2 occurrences of xx_yy_solve/apply, use xy_yx versions instead."""
+    xxyy_map = {'xx_yy_solve.py': 'xy_yx_solve.py', 'xx_yy_apply.py': 'xy_yx_apply.py'}
+    count = 0
+    for i, script_dict in enumerate(scripts):
+        script_name = script_dict['script']
+        if script_name in xxyy_map:
+            count += 1
+            if count > 2:
+                scripts[i] = {**script_dict, 'script': xxyy_map[script_name]}
+
+
 def get_config_kwargs(config, section, expected_keys):
     """Return kwargs from a config section, validating expected keys exist."""
     config_dict = config_parser.parse_config(config)[0]
@@ -95,12 +119,9 @@ def format_args(config, submit, quiet, dependencies, justrun):
         config_parser.overwrite_config(config, conf_dict={'nspw': 1}, conf_sec='crosscal')
         nspw = 1
 
-    def _names(lst):
-        return [s['script'] for s in lst]
-
     if config_parser.has_section(config, 'selfcal') and (
-        'selfcal_part1.py' in _names(kwargs['postcal_scripts'])
-        or 'selfcal_part1.py' in _names(kwargs['scripts'])
+        'selfcal_part1.py' in _extract_script_names(kwargs['postcal_scripts'])
+        or 'selfcal_part1.py' in _extract_script_names(kwargs['scripts'])
     ):
         selfcal_kwargs = get_config_kwargs(config, 'selfcal', SELFCAL_CONFIG_KEYS)
         bookkeeping.get_selfcal_params(config)
@@ -144,9 +165,9 @@ def format_args(config, submit, quiet, dependencies, justrun):
     if nspw == 1:
         if len(kwargs['precal_scripts']) > 0 or len(kwargs['postcal_scripts']) > 0:
             logger.warning('Appending pre/postcal_scripts to scripts since nspw=1.')
-            precal_names = _names(kwargs['precal_scripts'])
+            precal_names = _extract_script_names(kwargs['precal_scripts'])
             if ('calc_refant.py' in precal_names
-                    and 'calc_refant.py' in _names(kwargs['scripts'])):
+                    and 'calc_refant.py' in _extract_script_names(kwargs['scripts'])):
                 kwargs['precal_scripts'].pop(precal_names.index('calc_refant.py'))
 
             scripts = kwargs['precal_scripts'] + kwargs['scripts'] + kwargs['postcal_scripts']
@@ -188,9 +209,8 @@ def format_args(config, submit, quiet, dependencies, justrun):
         if nspw != 1:
             kwargs['threadsafe'][kwargs['num_precal_scripts']:] = [False] * len(kwargs['postcal_scripts'])
 
-    for threadsafe_script in ['quick_tclean.py', 'selfcal_part1.py', 'science_image.py']:
-        if threadsafe_script in kwargs['scripts']:
-            kwargs['threadsafe'][kwargs['scripts'].index(threadsafe_script)] = True
+    _set_threadsafe_for_scripts(kwargs['scripts'], kwargs['threadsafe'],
+                                   ['quick_tclean.py', 'selfcal_part1.py', 'science_image.py'])
 
     if kwargs['ntasks_per_node'] < _FACILITY.cpus_per_node_limit and nspw > 1:
         mem = int(mem // (nspw / 2))
@@ -303,15 +323,7 @@ def default_config(arg_dict):
 
     dopol = config_parser.get_key(filename, 'state', 'dopol')
     if dopol:
-        count = 0
-        for ind, ss in enumerate(arg_dict['scripts']):
-            if ss['script'] in ('xx_yy_solve.py', 'xx_yy_apply.py'):
-                count += 1
-            if count > 2:
-                if ss['script'] == 'xx_yy_solve.py':
-                    arg_dict['scripts'][ind] = {**ss, 'script': 'xy_yx_solve.py'}
-                if ss['script'] == 'xx_yy_apply.py':
-                    arg_dict['scripts'][ind] = {**ss, 'script': 'xy_yx_apply.py'}
+        _replace_xx_yy_with_xy_yx(arg_dict['scripts'])
         config_parser.overwrite_config(filename, conf_dict={'scripts': arg_dict['scripts']}, conf_sec='slurm')
 
     logger.info('Config "{0}" generated.'.format(filename))

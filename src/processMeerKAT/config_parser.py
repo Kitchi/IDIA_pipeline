@@ -225,21 +225,19 @@ validate_args = typed_get
 
 def parse_spw(filename):
     """Return (low, high, unit, dirs) parsed from the crosscal spw key."""
-    from spw import get_spw_bounds
+    from .spw import get_spw_bounds
 
     config_dict, _ = parse_config(filename)
     spw = config_dict['crosscal']['spw']
+    SPWs = spw.split(',') if ',' in spw else [spw]
 
-    if ',' in spw:
-        SPWs = spw.split(',')
-        low = [0] * len(SPWs)
-        high = [0] * len(SPWs)
-        unit = [''] * len(SPWs)
-        dirs = [''] * len(SPWs)
-        for i, SPW in enumerate(SPWs):
-            low[i], high[i], unit[i], _ = get_spw_bounds(SPW)
-            dirs[i] = '{0}~{1}{2}'.format(low[i], high[i], unit[i])
-        return low, high, unit, dirs
-    else:
-        low, high, unit, _ = get_spw_bounds(spw)
-        return low, high, unit, []
+    low, high, unit, dirs = [], [], [], []
+    for SPW in SPWs:
+        l, h, u, _ = get_spw_bounds(SPW)
+        low.append(l)
+        high.append(h)
+        unit.append(u)
+        if ',' in spw:
+            dirs.append('{0}~{1}{2}'.format(l, h, u))
+
+    return low, high, unit, dirs
