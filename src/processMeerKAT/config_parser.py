@@ -229,15 +229,17 @@ def parse_spw(filename):
 
     config_dict, _ = parse_config(filename)
     spw = config_dict['crosscal']['spw']
-    SPWs = spw.split(',') if ',' in spw else [spw]
 
-    low, high, unit, dirs = [], [], [], []
-    for SPW in SPWs:
-        l, h, u, _ = get_spw_bounds(SPW)
-        low.append(l)
-        high.append(h)
-        unit.append(u)
-        if ',' in spw:
+    if ',' in spw:
+        SPWs = spw.split(',')
+        low, high, unit, dirs = [], [], [], []
+        for SPW in SPWs:
+            l, h, u, _ = get_spw_bounds(SPW)
+            low.append(l)
+            high.append(h)
+            unit.append(u)
             dirs.append('{0}~{1}{2}'.format(l, h, u))
-
-    return low, high, unit, dirs
+        return low, high, unit, dirs
+    else:
+        low, high, unit, _ = get_spw_bounds(spw)
+        return low, high, unit, []
