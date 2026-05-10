@@ -18,7 +18,7 @@ def _taskvals(target_vis='target.mms', combined_kcorr='cal/foo.kcal',
             'phasecalfield': "'1'",
             'extrafields': "''",
         },
-        'run': {
+        'state': {
             'target_vis': "'{0}'".format(target_vis) if target_vis else '',
             'combined_kcorr': "'{0}'".format(combined_kcorr) if combined_kcorr else '',
             'combined_bpass': "'{0}'".format(combined_bpass) if combined_bpass else '',

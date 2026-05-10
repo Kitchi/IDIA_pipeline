@@ -117,7 +117,7 @@ class TestSpwSplit:
                 'precal_scripts': [], 'postcal_scripts': [],
                 'scripts': [{'script': 'validate_input.py', 'mpi': False}],
             },
-            'run': {'continue': True, 'dopol': False},
+            'state': {'continue': True, 'dopol': False},
         }
         (tmp_path / self.CFG_NAME).write_text(_dump_toml(config))
         return self.CFG_NAME  # relative path — caller must chdir first

@@ -228,7 +228,7 @@ def run_script(func, logfile=''):
     config_path = _parse_script_config()
     taskvals, _ = config_parser.parse_config(config_path)
 
-    continue_run = typed_get(taskvals, 'run', 'continue', bool, default=True)
+    continue_run = typed_get(taskvals, 'state', 'continue', bool, default=True)
     spw          = typed_get(taskvals, 'crosscal', 'spw', str)
     nspw         = typed_get(taskvals, 'crosscal', 'nspw', int)
 
@@ -252,7 +252,7 @@ def run_script(func, logfile=''):
         config_parser.overwrite_config(
             config_path,
             conf_dict={'continue': False},
-            conf_sec='run',
+            conf_sec='state',
             sec_comment='# Internal variables for pipeline execution',
         )
         if nspw > 1:
@@ -261,7 +261,7 @@ def run_script(func, logfile=''):
                 config_parser.overwrite_config(
                     spw_config,
                     conf_dict={'continue': False},
-                    conf_sec='run',
+                    conf_sec='state',
                     sec_comment='# Internal variables for pipeline execution',
                 )
         rename_logs(logfile)
@@ -293,7 +293,7 @@ def get_selfcal_params(config_path=None):
 
     params['vis']    = taskvals['data']['vis']
     params['refant'] = taskvals['crosscal']['refant']
-    params['dopol']  = taskvals['run']['dopol']
+    params['dopol']  = taskvals['state']['dopol']
 
     if params['dopol'] and 'G' in params.get('gaintype', ''):
         logger.warning(

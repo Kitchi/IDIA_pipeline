@@ -210,7 +210,7 @@ def main(args, taskvals):
 
     config_parser.overwrite_config(
         args['config'],
-        conf_sec='run',
+        conf_sec='state',
         sec_comment='# Internal variables for pipeline execution',
         conf_dict=combined_paths,
     )

@@ -62,7 +62,7 @@ def do_partition_target(visname, target_field, preavg, include_crosshand, create
 def main(args, taskvals):
     visname = va(taskvals, 'data', 'vis', str)
     preavg = va(taskvals, 'crosscal', 'chanbin', int, default=1)
-    include_crosshand = va(taskvals, 'run', 'dopol', bool, default=False)
+    include_crosshand = va(taskvals, 'state', 'dopol', bool, default=False)
     createmms = va(taskvals, 'crosscal', 'createmms', bool, default=True)
 
     casalog.setlogfile('logs/{SLURM_JOB_NAME}-{SLURM_JOB_ID}.casa'.format(**os.environ))
@@ -75,7 +75,7 @@ def main(args, taskvals):
 
     config_parser.overwrite_config(
         args['config'],
-        conf_sec='run',
+        conf_sec='state',
         conf_dict={'target_vis': target_vis},
     )
 

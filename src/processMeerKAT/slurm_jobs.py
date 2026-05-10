@@ -186,7 +186,7 @@ def write_sbatch(script, args, nodes=1, tasks=16, mem=MEM_PER_NODE_GB_LIMIT,
     if 'tclean' in script or 'selfcal' in script or _is_cal_partition(script) or 'image' in script:
         params['cpus'] = int(CPUS_PER_NODE_LIMIT / tasks)
     if _is_cal_partition(script):
-        dopol = config_parser.get_key(PIPELINE_STATE, 'run', 'dopol')
+        dopol = config_parser.get_key(PIPELINE_STATE, 'state', 'dopol')
         if dopol and 4 * tasks < CPUS_PER_NODE_LIMIT:
             params['cpus'] = 4
         elif not dopol and params['cpus'] > 2:
@@ -363,13 +363,13 @@ def write_master(filename, config, scripts=[], submit=False,
                  echo=True, dependencies='', slurm_kwargs={}):
     """Write master pipeline submission script (single-SPW case)."""
 
-    timestamp = config_parser.get_key(config, 'run', 'timestamp')
+    timestamp = config_parser.get_key(config, 'state', 'timestamp')
     if timestamp == '':
         timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         config_parser.overwrite_config(
             config,
             conf_dict={'timestamp': timestamp},
-            conf_sec='run',
+            conf_sec='state',
         )
 
     scripts = _expand_selfcal_loops(config, scripts)

@@ -5,8 +5,8 @@
 Apply the combined per-SPW caltables to the monolithic target MMS.
 
 Runs once at top level (postcal) after ``concat_caltables.py`` has joined all
-per-SPW caltables. Reads the target MMS path from ``[run] target_vis`` and
-the combined caltable paths from ``[run] combined_*``, then runs a single
+per-SPW caltables. Reads the target MMS path from ``[state] target_vis`` and
+the combined caltable paths from ``[state] combined_*``, then runs a single
 ``applycal`` so the target MMS gets a populated ``CORRECTED_DATA`` column
 ready for selfcal / science imaging.
 """
@@ -30,17 +30,17 @@ def _strip(s):
 
 
 def main(args, taskvals):
-    run = taskvals.get('run', {})
+    state = taskvals.get('state', {})
     fields = bookkeeping.get_field_ids(taskvals['fields'])
 
-    target_vis = _strip(run.get('target_vis', ''))
+    target_vis = _strip(state.get('target_vis', ''))
     if not target_vis:
-        raise RuntimeError("apply_to_target: [run].target_vis is missing — partition_target.py must run first.")
+        raise RuntimeError("apply_to_target: [state].target_vis is missing — partition_target.py must run first.")
 
     # Pull combined caltable paths set by concat_caltables.py.
-    kcorr = _strip(run.get('combined_kcorr', ''))
-    bpass = _strip(run.get('combined_bpass', ''))
-    flux  = _strip(run.get('combined_flux', '')) or _strip(run.get('combined_gain', ''))
+    kcorr = _strip(state.get('combined_kcorr', ''))
+    bpass = _strip(state.get('combined_bpass', ''))
+    flux  = _strip(state.get('combined_flux', '')) or _strip(state.get('combined_gain', ''))
 
     gaintables = []
     gainfields = []
@@ -55,7 +55,7 @@ def main(args, taskvals):
         gainfields.append(_strip(fields.fluxfield))
 
     if not gaintables:
-        raise RuntimeError("apply_to_target: no combined caltables found in [run] section.")
+        raise RuntimeError("apply_to_target: no combined caltables found in [state] section.")
 
     casalog.setlogfile('logs/{SLURM_JOB_NAME}-{SLURM_JOB_ID}.casa'.format(**os.environ))
     casalog.post(

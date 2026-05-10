@@ -71,7 +71,7 @@ def main(args,taskvals):
     nspw = va(taskvals, 'crosscal', 'nspw', int, default='')
     tasks = va(taskvals, 'slurm', 'ntasks_per_node', int)
     preavg = va(taskvals, 'crosscal', 'chanbin', int, default=1)
-    include_crosshand = va(taskvals, 'run', 'dopol', bool, default=False)
+    include_crosshand = va(taskvals, 'state', 'dopol', bool, default=False)
     createmms = va(taskvals, 'crosscal', 'createmms', bool, default=True)
 
     if nspw > 1:
@@ -99,7 +99,7 @@ def main(args,taskvals):
 
     mvis = do_partition(visname, spw, preavg, CPUs, include_crosshand, createmms, spwname, field=cal_fields)
     config_parser.overwrite_config(args['config'], conf_sec='data', conf_dict={'vis': mvis})
-    config_parser.overwrite_config(args['config'], conf_sec='run', conf_dict={'orig_vis': visname})
+    config_parser.overwrite_config(args['config'], conf_sec='state', conf_dict={'orig_vis': visname})
     msmd.done()
 
 if __name__ == '__main__':

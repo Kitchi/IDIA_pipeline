@@ -66,7 +66,7 @@ standard = "Stevens-Reynolds 2016"
 badants = []
 badfreqranges = ["933~960MHz"]
 
-[run]
+[state]
 continue = true
 dopol = false
 
@@ -129,7 +129,7 @@ standard = "Stevens-Reynolds 2016"
 badants = []
 badfreqranges = ["933~960MHz"]
 
-[run]
+[state]
 continue = true
 dopol = false
 
@@ -198,7 +198,7 @@ standard = "Stevens-Reynolds 2016"
 badants = []
 badfreqranges = []
 
-[run]
+[state]
 continue = true
 dopol = false
 

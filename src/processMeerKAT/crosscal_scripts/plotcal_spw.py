@@ -267,7 +267,7 @@ def main(args,taskvals):
             os.makedirs(PLOT_DIR)
 
         fields = bookkeeping.get_field_ids(taskvals['fields'])
-        visname = va(taskvals, 'run', 'crosscal_vis', str)
+        visname = va(taskvals, 'state', 'crosscal_vis', str)
         polfield = bookkeeping.polfield_name(visname)
 
         msmd.open(visname)

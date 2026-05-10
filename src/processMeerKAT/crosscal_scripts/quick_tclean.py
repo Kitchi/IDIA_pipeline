@@ -102,7 +102,7 @@ def run_tclean(visname, fields, keepmms):
 
 def main(args,taskvals):
 
-    visname = va(taskvals, 'run', 'crosscal_vis', str)
+    visname = va(taskvals, 'state', 'crosscal_vis', str)
     keepmms = va(taskvals, 'crosscal', 'keepmms', bool)
 
     fields = bookkeeping.get_field_ids(taskvals['fields'])

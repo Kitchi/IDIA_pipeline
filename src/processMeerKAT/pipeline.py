@@ -195,11 +195,11 @@ def format_args(config, submit, quiet, dependencies, justrun):
     if kwargs['ntasks_per_node'] < _FACILITY.cpus_per_node_limit and nspw > 1:
         mem = int(mem // (nspw / 2))
 
-    dopol = config_parser.get_key(config, 'run', 'dopol')
+    dopol = config_parser.get_key(config, 'state', 'dopol')
     if not dopol and ('xy_yx_solve.py' in kwargs['scripts'] or 'xy_yx_apply.py' in kwargs['scripts']):
         logger.warning("Cross-hand calibration scripts found. Forcing dopol=True.")
         config_parser.overwrite_config(
-            config, conf_dict={'dopol': True}, conf_sec='run',
+            config, conf_dict={'dopol': True}, conf_sec='state',
         )
 
     includes_partition = any('partition' in script for script in kwargs['scripts'])
@@ -208,7 +208,7 @@ def format_args(config, submit, quiet, dependencies, justrun):
         config_parser.overwrite_config(
             config,
             conf_dict={'timestamp': kwargs['timestamp']},
-            conf_sec='run',
+            conf_sec='state',
         )
         nspw = spw_split(spw, nspw, config, mem, crosscal_kwargs['badfreqranges'],
                          kwargs['MS'], includes_partition,
@@ -264,7 +264,7 @@ def default_config(arg_dict):
     config_parser.overwrite_config(
         filename,
         conf_dict={'dopol': arg_dict['dopol']},
-        conf_sec='run',
+        conf_sec='state',
     )
 
     if not arg_dict['do2GC'] or not arg_dict['science_image']:
@@ -301,7 +301,7 @@ def default_config(arg_dict):
         logger.info('Skipping extraction of field IDs and assuming nspw=1.')
         config_parser.overwrite_config(filename, conf_dict={'nspw': 1}, conf_sec='crosscal')
 
-    dopol = config_parser.get_key(filename, 'run', 'dopol')
+    dopol = config_parser.get_key(filename, 'state', 'dopol')
     if dopol:
         count = 0
         for ind, ss in enumerate(arg_dict['scripts']):

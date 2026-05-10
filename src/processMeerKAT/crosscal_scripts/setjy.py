@@ -164,7 +164,7 @@ def main(args,taskvals):
 
     spw = va(taskvals, "crosscal", "spw", str, default="")
     standard = va(taskvals, "crosscal", "standard", str, default="Stevens-Reynolds 2016")
-    dopol = va(taskvals, 'run', 'dopol', bool, default=False)
+    dopol = va(taskvals, 'state', 'dopol', bool, default=False)
     createmms = va(taskvals, 'crosscal', 'createmms', bool, default=True)
 
     do_setjy(visname, spw, fields, standard, dopol, createmms)

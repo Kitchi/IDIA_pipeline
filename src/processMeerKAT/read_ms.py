@@ -496,7 +496,7 @@ def main():
 
     SPW, write_nspw = resolve_spw_for_build(msmd, existing_nspw)
 
-    config_parser.overwrite_config(args.config, conf_dict={'dopol' : dopol}, conf_sec='run', sec_comment='# Internal variables for pipeline execution')
+    config_parser.overwrite_config(args.config, conf_dict={'dopol' : dopol}, conf_sec='state', sec_comment='# Pipeline runtime state — do not edit manually')
     config_parser.overwrite_config(args.config, conf_dict=threads, conf_sec='slurm')
     config_parser.overwrite_config(args.config, conf_dict=fields, conf_sec='fields')
     config_parser.overwrite_config(args.config, conf_dict={'spw': SPW, 'nspw': write_nspw}, conf_sec='crosscal')

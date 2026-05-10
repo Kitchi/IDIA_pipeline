@@ -94,7 +94,7 @@ _SELFCAL_TASKVALS = {
     },
     'data': {'vis': 'test.ms'},
     'crosscal': {'refant': 'cal.refant'},
-    'run': {'dopol': False},
+    'state': {'dopol': False},
 }
 
 
@@ -125,7 +125,7 @@ def test_get_selfcal_params_input_error_list_violation(mock_logger, mock_parse_c
         },
         'data': {'vis': 'test.ms'},
         'crosscal': {'refant': 'cal.refant'},
-        'run': {'dopol': False},
+        'state': {'dopol': False},
     }
     mock_parse_config.return_value = (taskvals, None)
 
@@ -149,7 +149,7 @@ def test_get_selfcal_params_length_mismatch(mock_logger, mock_parse_config):
         },
         'data': {'vis': 'test.ms'},
         'crosscal': {'refant': 'cal.refant'},
-        'run': {'dopol': False},
+        'state': {'dopol': False},
     }
     mock_parse_config.return_value = (taskvals, None)
 
@@ -182,12 +182,12 @@ def test_get_imaging_params_mask_file_reused(mock_file_open, mock_exists, mock_p
 # --- Tests for run_script ---
 
 _RUN_TASKVALS_OK = {
-    'run': {'continue': True},
+    'state': {'continue': True},
     'crosscal': {'spw': '*:880~1080MHz', 'nspw': 1},
 }
 
 _RUN_TASKVALS_STOPPED = {
-    'run': {'continue': False},
+    'state': {'continue': False},
     'crosscal': {'spw': '*:880~1080MHz', 'nspw': 1},
 }
 
@@ -230,7 +230,7 @@ def test_run_script_failed_and_set_continue_false(mock_exit, mock_logger, mock_p
 
     mock_exit.assert_called_once_with(1)
     mock_overwrite.assert_called_once()
-    # Verify the overwrite targeted the 'run' section with continue=False
+    # Verify the overwrite targeted the 'state' section with continue=False
     _, kwargs = mock_overwrite.call_args
-    assert kwargs['conf_sec'] == 'run'
+    assert kwargs['conf_sec'] == 'state'
     assert kwargs['conf_dict'] == {'continue': False}

@@ -107,6 +107,6 @@ mask = ""
 rmsmap = ""
 outlierfile = ""
 
-[run]
+[state]
 continue = true
 dopol = false

@@ -182,7 +182,7 @@ def spw_split(spw, nspw, config, mem, badfreqranges, MS, partition,
             config_parser.overwrite_config(
                 spw_config,
                 conf_dict={'orig_vis': orig_vis},
-                conf_sec='run',
+                conf_sec='state',
             )
             config_parser.overwrite_config(
                 spw_config, conf_dict={'vis': vis}, conf_sec='data'
