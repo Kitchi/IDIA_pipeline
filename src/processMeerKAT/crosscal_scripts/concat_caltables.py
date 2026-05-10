@@ -18,9 +18,8 @@ to the ``[run]`` config section so ``apply_to_target.py`` can find them.
 import os
 import sys
 
-from .. import config_parser
-from ..config_parser import validate_args as va
 from .. import bookkeeping
+from ..config_parser import typed_get
 from .. import processMeerKAT
 
 import numpy as np
@@ -169,8 +168,8 @@ def _append_spw_rows(src_path, dst_path, global_spw_id):
     tb.close()
 
 
-def main(args, taskvals):
-    visname = va(taskvals, 'data', 'vis', str)
+def main(ctx):
+    visname = typed_get(ctx.config, 'data', 'vis', str)
     base = os.path.splitext(os.path.basename(visname.strip("'")))[0]
 
     casalog.setlogfile('logs/{SLURM_JOB_NAME}-{SLURM_JOB_ID}.casa'.format(**os.environ))

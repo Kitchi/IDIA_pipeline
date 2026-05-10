@@ -2,9 +2,8 @@
 #See processMeerKAT.py for license details.
 
 import os
-from .. import config_parser
-from ..config_parser import validate_args as va
 from .. import bookkeeping
+from ..config_parser import typed_get
 import glob
 PLOT_DIR = 'plots'
 EXTN = 'pdf'
@@ -90,13 +89,13 @@ def plot_antennas(caltype,fields,calfiles,xaxis='freq',yaxis='amp'):
     os.system('rm {0}'.format(' '.join(plots)))
 
 
-def main(args,taskvals):
+def main(ctx):
 
-    visname = va(taskvals, 'state', 'crosscal_vis', str)
-    keepmms = va(taskvals, 'crosscal', 'keepmms', bool)
+    visname = typed_get(ctx.config, 'state', 'crosscal_vis', str)
+    keepmms = typed_get(ctx.config, 'crosscal', 'keepmms', bool)
 
     calfiles, caldir = bookkeeping.bookkeeping(visname)
-    fields = bookkeeping.get_field_ids(taskvals['fields'])
+    fields = ctx.fields
 
     msmd.open(visname)
 

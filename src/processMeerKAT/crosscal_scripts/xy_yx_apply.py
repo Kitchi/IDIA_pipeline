@@ -5,9 +5,8 @@ import sys
 import os
 import shutil
 
-from .. import config_parser
 from .. import bookkeeping, read_ms
-from ..config_parser import validate_args as va
+from ..config_parser import typed_get
 
 from casatasks import *
 logfile=casalog.logfile()
@@ -65,12 +64,12 @@ def do_cross_cal_apply(visname, fields, calfiles, caldir):
             parang=True, interp='nearest,nearest,nearest,nearest')
 
 
-def main(args,taskvals):
+def main(ctx):
 
-    visname = va(taskvals, 'data', 'vis', str)
+    visname = typed_get(ctx.config, 'data', 'vis', str)
 
     calfiles, caldir = bookkeeping.bookkeeping(visname)
-    fields = bookkeeping.get_field_ids(taskvals['fields'])
+    fields = ctx.fields
 
     do_cross_cal_apply(visname, fields, calfiles, caldir)
 

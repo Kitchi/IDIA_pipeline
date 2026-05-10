@@ -4,9 +4,8 @@
 """
 Calculates the reference antenna
 """
-from .. import config_parser
-from ..config_parser import validate_args as va
 from .. import bookkeeping
+from ..config_parser import typed_get
 
 import os
 import numpy as np
@@ -79,13 +78,13 @@ def get_ref_ant(visname, fluxfield):
 
     return referenceant, badants
 
-def main(args,taskvals):
+def main(ctx):
 
-    visname = va(taskvals, 'data', 'vis', str)
-    fields = bookkeeping.get_field_ids(taskvals['fields'])
-    calcrefant = va(taskvals, 'crosscal', 'calcrefant', bool)
-    spw = va(taskvals, 'crosscal', 'spw', str)
-    nspw = va(taskvals, 'crosscal', 'nspw', int)
+    visname = typed_get(ctx.config, 'data', 'vis', str)
+    fields = ctx.fields
+    calcrefant = typed_get(ctx.config, 'crosscal', 'calcrefant', bool)
+    spw = typed_get(ctx.config, 'crosscal', 'spw', str)
+    nspw = typed_get(ctx.config, 'crosscal', 'nspw', int)
 
     # Calculate reference antenna
     if calcrefant:

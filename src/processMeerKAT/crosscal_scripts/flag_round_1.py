@@ -4,8 +4,6 @@
 import sys
 import os
 
-from .. import config_parser
-from ..config_parser import validate_args as va
 from .. import bookkeeping
 
 from casatasks import *
@@ -61,17 +59,12 @@ def do_pre_flag(visname, fields, badfreqranges, badants):
     flagdata(vis=visname, mode='summary', datacolumn='DATA',
             name=visname+'.flag.summary')
 
-def main(args,taskvals):
+def main(ctx):
 
-    visname = va(taskvals, 'data', 'vis', str)
+    badfreqranges = ctx.config['crosscal'].get('badfreqranges', ['935~947MHz', '1160~1310MHz', '1476~1611MHz', '1670~1700MHz'])
+    badants = ctx.config['crosscal'].get('badants')
 
-    badfreqranges = taskvals['crosscal'].pop('badfreqranges', ['935~947MHz', '1160~1310MHz', '1476~1611MHz', '1670~1700MHz'])
-    badants = taskvals['crosscal'].pop('badants')
-
-    calfiles, caldir = bookkeeping.bookkeeping(visname)
-    fields = bookkeeping.get_field_ids(taskvals['fields'])
-
-    do_pre_flag(visname, fields, badfreqranges, badants)
+    do_pre_flag(ctx.cal_vis, ctx.fields, badfreqranges, badants)
 
 if __name__ == '__main__':
 

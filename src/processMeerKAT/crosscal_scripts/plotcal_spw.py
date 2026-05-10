@@ -5,7 +5,6 @@
 
 import os
 import glob
-from .. import config_parser
 import traceback
 
 import matplotlib
@@ -14,8 +13,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..config_parser import validate_args as va
 from .. import bookkeeping
+from ..config_parser import typed_get
 import glob
 PLOT_DIR = 'plots'
 EXTN = 'png'
@@ -260,14 +259,14 @@ def plotcal(plotstr, field_id, dirs, caldir, table_ext, title, outname, xlim=Non
     plt.savefig('{0}.{1}'.format(outname,EXTN), bbox_inches='tight')
 
 
-def main(args,taskvals):
+def main(ctx):
 
     try:
         if not os.path.exists(PLOT_DIR):
             os.makedirs(PLOT_DIR)
 
-        fields = bookkeeping.get_field_ids(taskvals['fields'])
-        visname = va(taskvals, 'state', 'crosscal_vis', str)
+        fields = ctx.fields
+        visname = typed_get(ctx.config, 'state', 'crosscal_vis', str)
         polfield = bookkeeping.polfield_name(visname)
 
         msmd.open(visname)

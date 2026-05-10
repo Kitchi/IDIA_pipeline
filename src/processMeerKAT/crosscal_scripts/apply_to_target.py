@@ -13,8 +13,6 @@ ready for selfcal / science imaging.
 import os
 import sys
 
-from .. import config_parser
-from ..config_parser import validate_args as va
 from .. import bookkeeping
 from .. import processMeerKAT
 
@@ -29,11 +27,11 @@ def _strip(s):
     return s
 
 
-def main(args, taskvals):
-    state = taskvals.get('state', {})
-    fields = bookkeeping.get_field_ids(taskvals['fields'])
+def main(ctx):
+    state = ctx.config.get('state', {})
+    fields = ctx.fields
 
-    target_vis = _strip(state.get('target_vis', ''))
+    target_vis = _strip(state.get('target_vis', '')) or ctx.target_vis
     if not target_vis:
         raise RuntimeError("apply_to_target: [state].target_vis is missing — partition_target.py must run first.")
 

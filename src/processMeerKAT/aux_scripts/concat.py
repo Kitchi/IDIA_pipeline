@@ -6,9 +6,8 @@ import sys
 import glob
 from shutil import copytree
 
-from .. import config_parser
-from ..config_parser import validate_args as va
 from .. import bookkeeping
+from ..config_parser import typed_get
 
 from casatasks import *
 logfile=casalog.logfile()
@@ -153,12 +152,12 @@ def do_concat(visname, fields, dirs='*MHz'):
 
     return newvis
 
-def main(args,taskvals):
+def main(ctx):
 
-    visname = va(taskvals, 'data', 'vis', str)
-    spw = va(taskvals, 'crosscal', 'spw', str, default='')
-    nspw = va(taskvals, 'crosscal', 'nspw', int, default='')
-    fields = bookkeeping.get_field_ids(taskvals['fields'])
+    visname = typed_get(ctx.config, 'data', 'vis', str)
+    spw = typed_get(ctx.config, 'crosscal', 'spw', str, default='')
+    nspw = typed_get(ctx.config, 'crosscal', 'nspw', int, default='')
+    fields = ctx.fields
     dirs = config_parser.parse_spw(args['config'])[3]
 
     if ',' in spw:

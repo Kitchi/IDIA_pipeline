@@ -13,9 +13,8 @@ in parallel with the per-SPW calibrator solve chains. The MMS layout
 import sys
 import os
 
-from .. import config_parser
-from ..config_parser import validate_args as va
 from .. import processMeerKAT
+from ..config_parser import typed_get
 from .. import bookkeeping
 from .partition import _strip_quotes
 
@@ -59,11 +58,11 @@ def do_partition_target(visname, target_field, preavg, include_crosshand, create
     return target_vis
 
 
-def main(args, taskvals):
-    visname = va(taskvals, 'data', 'vis', str)
-    preavg = va(taskvals, 'crosscal', 'chanbin', int, default=1)
-    include_crosshand = va(taskvals, 'state', 'dopol', bool, default=False)
-    createmms = va(taskvals, 'crosscal', 'createmms', bool, default=True)
+def main(ctx):
+    visname = typed_get(ctx.config, 'data', 'vis', str)
+    preavg = typed_get(ctx.config, 'crosscal', 'chanbin', int, default=1)
+    include_crosshand = typed_get(ctx.config, 'state', 'dopol', bool, default=False)
+    createmms = typed_get(ctx.config, 'crosscal', 'createmms', bool, default=True)
 
     casalog.setlogfile('logs/{SLURM_JOB_NAME}-{SLURM_JOB_ID}.casa'.format(**os.environ))
 

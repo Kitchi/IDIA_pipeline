@@ -182,13 +182,29 @@ def test_get_imaging_params_mask_file_reused(mock_file_open, mock_exists, mock_p
 # --- Tests for run_script ---
 
 _RUN_TASKVALS_OK = {
-    'state': {'continue': True},
+    'state': {'continue': True, 'cal_vis': '', 'target_vis': None},
     'crosscal': {'spw': '*:880~1080MHz', 'nspw': 1},
+    'data': {'vis': '/path/to/data.ms'},
+    'fields': {
+        'targetfields': '0',
+        'extrafields': '',
+        'fluxfield': '1',
+        'bpassfield': '1',
+        'phasecalfield': '2',
+    },
 }
 
 _RUN_TASKVALS_STOPPED = {
-    'state': {'continue': False},
+    'state': {'continue': False, 'cal_vis': '', 'target_vis': None},
     'crosscal': {'spw': '*:880~1080MHz', 'nspw': 1},
+    'data': {'vis': '/path/to/data.ms'},
+    'fields': {
+        'targetfields': '0',
+        'extrafields': '',
+        'fluxfield': '1',
+        'bpassfield': '1',
+        'phasecalfield': '2',
+    },
 }
 
 

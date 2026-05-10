@@ -4,8 +4,6 @@
 import sys
 import os
 
-from .. import config_parser
-from ..config_parser import validate_args as va
 from .. import bookkeeping
 
 from casatasks import *
@@ -63,14 +61,9 @@ def do_pre_flag_2(visname, fields):
             extendflags=True, name=visname + 'summary.split', action="apply",
             flagbackup=True, overwrite=True, writeflags=True)
 
-def main(args,taskvals):
+def main(ctx):
 
-    visname = va(taskvals, 'data', 'vis', str)
-
-    calfiles, caldir = bookkeeping.bookkeeping(visname)
-    fields = bookkeeping.get_field_ids(taskvals['fields'])
-
-    do_pre_flag_2(visname, fields)
+    do_pre_flag_2(ctx.cal_vis, ctx.fields)
 
 if __name__ == '__main__':
 

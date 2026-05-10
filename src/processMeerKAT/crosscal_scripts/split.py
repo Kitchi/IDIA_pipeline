@@ -4,9 +4,8 @@
 import sys
 import os
 
-from .. import config_parser
 from .. import bookkeeping
-from ..config_parser import validate_args as va
+from ..config_parser import typed_get
 
 from casatasks import *
 logfile=casalog.logfile()
@@ -40,19 +39,19 @@ def split_vis(visname, spw, fields, specavg, timeavg, keepmms, badants):
 
     return newvis
 
-def main(args,taskvals):
+def main(ctx):
 
-    visname = va(taskvals, 'data', 'vis', str)
+    visname = typed_get(ctx.config, 'data', 'vis', str)
 
     calfiles, caldir = bookkeeping.bookkeeping(visname)
-    fields = bookkeeping.get_field_ids(taskvals['fields'])
+    fields = ctx.fields
 
-    spw = va(taskvals, 'crosscal', 'spw', str, default='')
-    badants = taskvals['crosscal'].pop('badants')
+    spw = typed_get(ctx.config, 'crosscal', 'spw', str, default='')
+    badants = ctx.config['crosscal'].pop('badants')
 
-    specavg = va(taskvals, 'crosscal', 'width', int, default=1)
-    timeavg = va(taskvals, 'crosscal', 'timeavg', str, default='8s')
-    keepmms = va(taskvals, 'crosscal', 'keepmms', bool)
+    specavg = typed_get(ctx.config, 'crosscal', 'width', int, default=1)
+    timeavg = typed_get(ctx.config, 'crosscal', 'timeavg', str, default='8s')
+    keepmms = typed_get(ctx.config, 'crosscal', 'keepmms', bool)
 
     msmd.open(visname)
     newvis = split_vis(visname, spw, fields, specavg, timeavg, keepmms, badants)

@@ -11,9 +11,8 @@ calibrator solve chain and the target flag chain can run in parallel branches.
 import sys
 import os
 
-from .. import config_parser
-from ..config_parser import validate_args as va
 from .. import read_ms
+from ..config_parser import typed_get
 from .. import processMeerKAT
 from .. import bookkeeping
 
@@ -62,17 +61,17 @@ def do_partition(visname, spw, preavg, CPUs, include_crosshand, createmms, spwna
 
     return mvis
 
-def main(args,taskvals):
+def main(ctx):
 
-    visname = va(taskvals, 'data', 'vis', str)
-    calcrefant = va(taskvals, 'crosscal', 'calcrefant', bool, default=False)
-    refant = va(taskvals, 'crosscal', 'refant', str, default='m005')
-    spw = va(taskvals, 'crosscal', 'spw', str, default='')
-    nspw = va(taskvals, 'crosscal', 'nspw', int, default='')
-    tasks = va(taskvals, 'slurm', 'ntasks_per_node', int)
-    preavg = va(taskvals, 'crosscal', 'chanbin', int, default=1)
-    include_crosshand = va(taskvals, 'state', 'dopol', bool, default=False)
-    createmms = va(taskvals, 'crosscal', 'createmms', bool, default=True)
+    visname = typed_get(ctx.config, 'data', 'vis', str)
+    calcrefant = typed_get(ctx.config, 'crosscal', 'calcrefant', bool, default=False)
+    refant = typed_get(ctx.config, 'crosscal', 'refant', str, default='m005')
+    spw = typed_get(ctx.config, 'crosscal', 'spw', str, default='')
+    nspw = typed_get(ctx.config, 'crosscal', 'nspw', int, default='')
+    tasks = typed_get(ctx.config, 'slurm', 'ntasks_per_node', int)
+    preavg = typed_get(ctx.config, 'crosscal', 'chanbin', int, default=1)
+    include_crosshand = typed_get(ctx.config, 'state', 'dopol', bool, default=False)
+    createmms = typed_get(ctx.config, 'crosscal', 'createmms', bool, default=True)
 
     if nspw > 1:
         casalog.setlogfile('logs/{SLURM_JOB_NAME}-{SLURM_ARRAY_JOB_ID}_{SLURM_ARRAY_TASK_ID}.casa'.format(**os.environ))

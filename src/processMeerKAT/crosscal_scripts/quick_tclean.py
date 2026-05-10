@@ -4,9 +4,8 @@
 import sys
 import os
 
-from .. import config_parser
-from ..config_parser import validate_args as va
 from .. import bookkeeping
+from ..config_parser import typed_get
 import glob
 
 from casatasks import *
@@ -100,12 +99,12 @@ def run_tclean(visname, fields, keepmms):
     msmd.done()
 
 
-def main(args,taskvals):
+def main(ctx):
 
-    visname = va(taskvals, 'state', 'crosscal_vis', str)
-    keepmms = va(taskvals, 'crosscal', 'keepmms', bool)
+    visname = typed_get(ctx.config, 'state', 'crosscal_vis', str)
+    keepmms = typed_get(ctx.config, 'crosscal', 'keepmms', bool)
 
-    fields = bookkeeping.get_field_ids(taskvals['fields'])
+    fields = ctx.fields
 
     run_tclean(visname, fields, keepmms)
 

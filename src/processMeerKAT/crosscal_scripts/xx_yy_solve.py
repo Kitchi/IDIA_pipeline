@@ -5,9 +5,8 @@ import sys
 import os
 import shutil
 
-from .. import config_parser
 from .. import bookkeeping
-from ..config_parser import validate_args as va
+from ..config_parser import typed_get
 
 from casatasks import *
 logfile=casalog.logfile()
@@ -62,16 +61,16 @@ def do_parallel_cal(visname, fields, calfiles, referenceant, caldir,
                 listfile = os.path.join(caldir,'fluxscale_xx_yy.txt'))
         bookkeeping.check_file(calfiles.fluxfile)
 
-def main(args,taskvals):
+def main(ctx):
 
-    visname = va(taskvals, 'data', 'vis', str)
+    visname = typed_get(ctx.config, 'data', 'vis', str)
 
     calfiles, caldir = bookkeeping.bookkeeping(visname)
-    fields = bookkeeping.get_field_ids(taskvals['fields'])
+    fields = ctx.fields
 
-    minbaselines = va(taskvals, 'crosscal', 'minbaselines', int, default=4)
-    standard = va(taskvals, 'crosscal', 'standard', str, default='Stevens-Reynolds 2016')
-    refant = va(taskvals, 'crosscal', 'refant', str, default='m059')
+    minbaselines = typed_get(ctx.config, 'crosscal', 'minbaselines', int, default=4)
+    standard = typed_get(ctx.config, 'crosscal', 'standard', str, default='Stevens-Reynolds 2016')
+    refant = typed_get(ctx.config, 'crosscal', 'refant', str, default='m059')
 
     do_parallel_cal(visname, fields, calfiles, refant, caldir,minbaselines, standard)
 

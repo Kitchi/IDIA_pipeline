@@ -5,9 +5,8 @@ import sys
 import os
 import shutil
 
-from .. import config_parser
 from .. import bookkeeping
-from ..config_parser import validate_args as va
+from ..config_parser import typed_get
 from casarecipes.almapolhelpers import xyamb
 import numpy as np
 
@@ -174,16 +173,16 @@ def do_cross_cal(visname, fields, calfiles, referenceant, caldir,
     else:
         flagdata(vis=xyfile, datacolumn='CPARAM', mode='rflag', timedevscale=5.0, freqdevscale=5.0, action='apply')
 
-def main(args,taskvals):
+def main(ctx):
 
-    visname = va(taskvals, 'data', 'vis', str)
+    visname = typed_get(ctx.config, 'data', 'vis', str)
 
     calfiles, caldir = bookkeeping.bookkeeping(visname)
-    fields = bookkeeping.get_field_ids(taskvals['fields'])
+    fields = ctx.fields
 
-    refant = va(taskvals, 'crosscal', 'refant', str, default='m005')
-    minbaselines = va(taskvals, 'crosscal', 'minbaselines', int, default=4)
-    standard = va(taskvals, 'crosscal', 'standard', str, default='Perley-Butler 2010')
+    refant = typed_get(ctx.config, 'crosscal', 'refant', str, default='m005')
+    minbaselines = typed_get(ctx.config, 'crosscal', 'minbaselines', int, default=4)
+    standard = typed_get(ctx.config, 'crosscal', 'standard', str, default='Perley-Butler 2010')
 
     do_cross_cal(visname, fields, calfiles, refant, caldir, minbaselines, standard)
 

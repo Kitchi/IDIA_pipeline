@@ -10,6 +10,8 @@ import re
 import traceback
 import argparse
 from collections import namedtuple
+from dataclasses import dataclass
+from typing import Optional, Any, Dict
 
 from . import config_parser
 from .config_parser import typed_get
@@ -29,6 +31,23 @@ FieldIDs = namedtuple('FieldIDs', [
     'kcorrfield', 'xdelfield', 'dpolfield', 'xpolfield',
     'gainfields', 'extrafields',
 ])
+
+
+@dataclass
+class ScriptContext:
+    """Context passed to calibration scripts running as SLURM jobs.
+
+    All attributes are eagerly populated at script startup (free operations
+    like dict access and string construction).
+    """
+    input_vis: str       # [data] vis — original raw MS, always present
+    cal_vis: str         # Working calibrator MMS (= input_vis before partition)
+    target_vis: Optional[str]  # [state] target_vis — monolithic target MMS, None before partition_target
+    fields: FieldIDs     # Parsed field IDs from [fields] section
+    calfiles: Calfiles   # Cal table path namedtuple
+    caldir: str          # Cal table directory path
+    config: Dict[str, Any]  # Full parsed config dict
+    config_path: str     # Path to the config file
 
 
 # ---------------------------------------------------------------------------
@@ -222,17 +241,15 @@ def run_script(func, logfile=''):
     """Bootstrap wrapper for calibration scripts running as SLURM jobs.
 
     Reads the config path from -C/--config in sys.argv, parses the config,
-    checks the 'continue' flag, calls func(args, taskvals), and handles
-    errors by setting continue=False and exiting non-zero.
+    checks the 'continue' flag, builds a ScriptContext, calls func(ctx), and
+    handles errors by setting continue=False and exiting non-zero.
     """
     config_path = _parse_script_config()
-    taskvals, _ = config_parser.parse_config(config_path)
+    config, _ = config_parser.parse_config(config_path)
 
-    continue_run = typed_get(taskvals, 'state', 'continue', bool, default=True)
-    spw          = typed_get(taskvals, 'crosscal', 'spw', str)
-    nspw         = typed_get(taskvals, 'crosscal', 'nspw', int)
-
-    args = {'config': config_path}
+    continue_run = typed_get(config, 'state', 'continue', bool, default=True)
+    spw          = typed_get(config, 'crosscal', 'spw', str)
+    nspw         = typed_get(config, 'crosscal', 'nspw', int)
 
     if not continue_run:
         script = os.path.split(sys.argv[0])[1] if sys.argv else '?'
@@ -244,7 +261,25 @@ def run_script(func, logfile=''):
         sys.exit(1)
 
     try:
-        func(args, taskvals)
+        # Build ScriptContext with all attributes eagerly populated
+        input_vis = typed_get(config, 'data', 'vis', str)
+        cal_vis = typed_get(config, 'state', 'cal_vis', str, default=input_vis)
+        target_vis = typed_get(config, 'state', 'target_vis', str, default=None)
+        fields = get_field_ids(config['fields'])
+        calfiles, caldir = bookkeeping(input_vis)
+
+        ctx = ScriptContext(
+            input_vis=input_vis,
+            cal_vis=cal_vis,
+            target_vis=target_vis,
+            fields=fields,
+            calfiles=calfiles,
+            caldir=caldir,
+            config=config,
+            config_path=config_path,
+        )
+
+        func(ctx)
         rename_logs(logfile)
     except Exception as err:
         logger.error('Exception in pipeline (%s): %s', type(err).__name__, err)

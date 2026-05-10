@@ -1,0 +1,6 @@
+[state]
+continue = false
+
+[crosscal]
+spw = "*:880~1080MHz"
+nspw = 1

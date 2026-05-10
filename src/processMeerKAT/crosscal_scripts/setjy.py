@@ -4,7 +4,7 @@
 import os, sys, shutil
 
 from .. import bookkeeping
-from ..config_parser import validate_args as va
+from ..config_parser import typed_get
 import numpy as np
 import logging
 from time import gmtime
@@ -152,20 +152,20 @@ def do_setjy(visname, spw, fields, standard, dopol=False, createmms=True):
     msmd.done()
 
 
-def main(args,taskvals):
+def main(ctx):
 
-    visname = va(taskvals, "data", "vis", str)
+    visname = typed_get(ctx.config, 'data', 'vis', str)
 
     if os.path.exists(os.path.join(os.getcwd(), "caltables")):
         shutil.rmtree(os.path.join(os.getcwd(), "caltables"))
 
     calfiles, caldir = bookkeeping.bookkeeping(visname)
-    fields = bookkeeping.get_field_ids(taskvals["fields"])
+    fields = ctx.fields
 
-    spw = va(taskvals, "crosscal", "spw", str, default="")
-    standard = va(taskvals, "crosscal", "standard", str, default="Stevens-Reynolds 2016")
-    dopol = va(taskvals, 'state', 'dopol', bool, default=False)
-    createmms = va(taskvals, 'crosscal', 'createmms', bool, default=True)
+    spw = typed_get(ctx.config, 'crosscal', 'spw', str, default="")
+    standard = typed_get(ctx.config, 'crosscal', 'standard', str, default="Stevens-Reynolds 2016")
+    dopol = typed_get(ctx.config, 'state', 'dopol', bool, default=False)
+    createmms = typed_get(ctx.config, 'crosscal', 'createmms', bool, default=True)
 
     do_setjy(visname, spw, fields, standard, dopol, createmms)
 

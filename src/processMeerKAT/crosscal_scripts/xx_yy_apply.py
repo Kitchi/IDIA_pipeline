@@ -4,9 +4,8 @@
 import sys
 import os
 
-from .. import config_parser
 from .. import bookkeeping
-from ..config_parser import validate_args as va
+from ..config_parser import typed_get
 
 from casatasks import *
 logfile=casalog.logfile()
@@ -36,15 +35,15 @@ def do_parallel_cal_apply(visname, fields, calfiles):
     applycal(vis=visname, field=field, selectdata=False, calwt=False, gaintable=[calfiles.kcorrfile, calfiles.bpassfile, fluxfile],
             gainfield=[fields.kcorrfield, fields.bpassfield, fields.secondaryfield], parang=False, interp='linear,linearflag')
 
-def main(args,taskvals):
+def main(ctx):
 
-    visname = va(taskvals, 'data', 'vis', str)
+    visname = typed_get(ctx.config, 'data', 'vis', str)
 
     calfiles, caldir = bookkeeping.bookkeeping(visname)
-    fields = bookkeeping.get_field_ids(taskvals['fields'])
+    fields = ctx.fields
 
-    refant = va(taskvals, 'crosscal', 'refant', str, default='m005')
-    minbaselines = va(taskvals, 'crosscal', 'minbaselines', int, default=4)
+    refant = typed_get(ctx.config, 'crosscal', 'refant', str, default='m005')
+    minbaselines = typed_get(ctx.config, 'crosscal', 'minbaselines', int, default=4)
 
     do_parallel_cal_apply(visname, fields, calfiles)
 

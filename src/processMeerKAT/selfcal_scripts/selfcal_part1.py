@@ -6,8 +6,6 @@ import glob
 import os
 import re
 
-from .. import config_parser
-from ..config_parser import validate_args as va
 from .. import bookkeeping
 
 from casatasks import *
