@@ -66,14 +66,15 @@ def load_facility_from_config(config_path):
     """Read the [facility] section from config and return a FacilityConfig.
 
     If the section is absent the current default facility is returned unchanged.
-    Keys other than 'name' are treated as field overrides on the named facility.
+    Only the 'name' key is used; all facility defaults are specified in config
+    sections ([slurm], etc.) and are NOT loaded from facility overrides.
     """
     if not config_parser.has_section(config_path, 'facility'):
         return _FACILITY
 
-    fac_dict = dict(config_parser.parse_config(config_path)[0].get('facility', {}))
-    name = str(fac_dict.pop('name', _FACILITY.name)).strip("'\"")
-    return get_facility(name, **fac_dict)
+    fac_dict = config_parser.parse_config(config_path)[0].get('facility', {})
+    name = str(fac_dict.get('name', _FACILITY.name)).strip("'\"")
+    return get_facility(name)
 
 
 # ---------------------------------------------------------------------------
@@ -215,11 +216,10 @@ def parse_args():
                         help="Singularity container [default: '{0}'].".format(_FACILITY.default_container))
     parser.add_argument("--runner", metavar="prefix", required=False, type=str, default=None,
                         help=(
-                            "Command prefix for every script invocation, overriding the facility "
-                            "default. Use '' for bare Python (CASA installed in the active env), "
-                            "'conda run -n mycasa --no-capture-output' for a conda env, or "
-                            "'singularity exec /path/to.sif' for an explicit container. "
-                            "When set, --container is cleared."
+                            "Container runtime or command prefix for every script invocation. "
+                            "E.g. 'singularity exec', 'docker exec', or 'conda run -n myenv'. "
+                            "When set, --container is cleared (ignored). "
+                            "[default: facility's default_runner]"
                         ))
     parser.add_argument("-n", "--name", metavar="unique", required=False, type=str, default='',
                         help="Unique run name prefix for all job names.")
@@ -232,7 +232,7 @@ def parse_args():
     parser.add_argument("-r", "--reservation", metavar="name", required=False, type=str, default='',
                         help="SLURM reservation to use.")
     parser.add_argument("-F", "--facility", metavar="name", required=False, type=str, default=None,
-                        help="Facility to target during -B (e.g. ilifu, generic_slurm). At -R time the [facility] section in the config file takes precedence.")
+                        help="Facility to target during -B (e.g. ilifu, generic_slurm). Expands facility defaults into [slurm] config section.")
     parser.add_argument("-l", "--local", action="store_true", required=False, default=False,
                         help="Build config locally without srun.")
     parser.add_argument("-s", "--submit", action="store_true", required=False, default=False,
@@ -315,13 +315,15 @@ def main():
         if args.facility:
             _FACILITY = get_facility(args.facility)
         if args.runner is not None:
-            _FACILITY = get_facility(_FACILITY.name, default_runner=args.runner, default_container='')
             args.container = ''
+        else:
+            args.runner = _FACILITY.default_runner
         default_config(vars(args))
     if args.run:
         _FACILITY = load_facility_from_config(args.config)
         kwargs = format_args(args.config, args.submit, args.quiet, args.dependencies, args.justrun)
-        write_jobs(args.config, **kwargs)
+        default_runner = kwargs.pop('runner', '')
+        write_jobs(args.config, default_runner=default_runner, **kwargs)
 
 
 if __name__ == "__main__":

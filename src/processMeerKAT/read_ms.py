@@ -181,58 +181,6 @@ def check_refant(MS,refant,config,warn=True):
             logger.info("This is usually a well-behaved (stable) antenna. Edit '{0}' to change this, by updating 'refant' in [crosscal] section.".format(config))
             logger.debug("Alternatively, set 'calcrefant=True' in [crosscal] section of '{0}', and include 'calc_refant.py' in 'scripts' in [slurm] section.".format(config)) #(included by default)
 
-def check_scans(MS,nodes,tasks,dopol):
-
-    """Check if the user has set the number of threads to a number larger than the number of scans.
-    If so, display a warning and return the number of thread to be replaced in their config file.
-
-    Arguments:
-    ----------
-    MS : str
-        Input MeasurementSet (relative or absolute path).
-    nodes : int
-        The number of nodes set by the user.
-    tasks : int
-        The number of tasks (per node) set by the user.
-    dopol : bool
-        Do polarisation calibration?
-
-    Returns:
-    --------
-    threads : dict
-        A dictionary with updated values for nodes and tasks per node to match the number of scans."""
-
-    nscans = msmd.nscans()
-    limit = int(nscans/2)
-
-    if abs(nodes * tasks - limit) > 0.1*limit:
-        logger.warning('The number of threads ({0} node(s) x {1} task(s) = {2}) is not ideal compared to the number of scans ({3}) for "{4}".'.format(nodes,tasks,nodes*tasks,nscans,MS))
-
-        #Start with 8/16 tasks on one node, and increase count of nodes (and then tasks per node) until limit reached
-        nodes = 1
-        tasks = 16 if not dopol else 8
-
-        if tasks > limit:
-            tasks = limit
-
-        while nodes * tasks < limit:
-            if nodes < processMeerKAT.TOTAL_NODES_LIMIT:
-                nodes += 1
-            elif tasks < processMeerKAT.NTASKS_PER_NODE_LIMIT:
-                tasks += 1
-            else:
-                break
-
-        logger.warning('Config file has been updated to use {0} node(s) and {1} task(s) per node.'.format(nodes,tasks))
-        if nodes*tasks != limit:
-            logger.info('For the best results, update your config file so that nodes x tasks per node = {0}.'.format(limit))
-
-    if nodes > 4:
-        logger.warning("Large allocation of {0} nodes found. Please consider setting 'createmms=False' in config file, if using large number of SPWs.".format(nodes))
-
-    threads = {'nodes' : nodes, 'ntasks_per_node' : tasks}
-    return threads
-
 def auto_detect_spw(msmd):
 
     """Build the SPW string and count from the MS's native SPECTRAL_WINDOW structure.
@@ -486,7 +434,6 @@ def main():
         dopol = False
 
     check_refant(args.MS, refant, args.config, warn=True)
-    threads = check_scans(args.MS,args.nodes,args.ntasks_per_node,dopol)
 
     existing_nspw = config_parser.parse_config(args.config)[0].get('crosscal', {}).get('nspw', 1)
     try:
@@ -497,7 +444,6 @@ def main():
     SPW, write_nspw = resolve_spw_for_build(msmd, existing_nspw)
 
     config_parser.overwrite_config(args.config, conf_dict={'dopol' : dopol}, conf_sec='state', sec_comment='# Pipeline runtime state — do not edit manually')
-    config_parser.overwrite_config(args.config, conf_dict=threads, conf_sec='slurm')
     config_parser.overwrite_config(args.config, conf_dict=fields, conf_sec='fields')
     config_parser.overwrite_config(args.config, conf_dict={'spw': SPW, 'nspw': write_nspw}, conf_sec='crosscal')
 

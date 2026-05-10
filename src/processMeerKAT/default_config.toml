@@ -18,7 +18,12 @@ partition = "Main"
 exclude = ""
 time = "12:00:00"
 submit = false
-container = "/idia/software/containers/casa-6.5.0-modular.sif"
+# runner: container runtime ("singularity exec" / "docker exec") or arbitrary
+#   prefix ("conda run -n myenv") or "" for bare Python.
+#   For container runtimes, the image path is taken from 'container' below.
+#   For other runners, 'container' is ignored.
+runner = ""
+container = ""
 mpi_wrapper = "mpirun"
 name = ""
 dependencies = ""

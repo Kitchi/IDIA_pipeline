@@ -38,20 +38,20 @@ class TestWriteCommand:
 
     def test_singularity_exec_present(self, tmp_pipeline_dir):
         cmd = pmk.write_command('flag_round_1.py', '--config pipeline_state.toml',
-                                mpi_wrapper='mpirun', container='/some/container.sif',
+                                mpi_wrapper='mpirun', runner='singularity exec', container='/some/container.sif',
                                 casa_script=True, logfile=False)
         assert 'singularity exec' in cmd
 
     def test_container_path_in_command(self, tmp_pipeline_dir):
         container = '/my/special/container.sif'
         cmd = pmk.write_command('flag_round_1.py', '--config pipeline_state.toml',
-                                mpi_wrapper='srun', container=container,
+                                mpi_wrapper='srun', runner='singularity exec', container=container,
                                 casa_script=False, logfile=False)
         assert container in cmd
 
     def test_mpi_wrapper_in_command(self, tmp_pipeline_dir):
         cmd = pmk.write_command('flag_round_1.py', '--config pipeline_state.toml',
-                                mpi_wrapper='mpirun', container='/c.sif',
+                                mpi_wrapper='mpirun', runner='singularity exec', container='/c.sif',
                                 casa_script=False, logfile=False)
         assert 'mpirun' in cmd
 

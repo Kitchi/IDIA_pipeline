@@ -226,14 +226,6 @@ class TestLoadFacilityFromConfig:
         result = pmk.load_facility_from_config(minimal_config)
         assert result is ILIFU
 
-    def test_override_field_via_config(self, tmp_path, monkeypatch):
-        cfg = tmp_path / 'cfg.toml'
-        cfg.write_text('[facility]\nname = "ilifu"\ntotal_nodes_limit = 10\n')
-        monkeypatch.setattr(_pmk_mod, '_FACILITY', ILIFU)
-        result = pmk.load_facility_from_config(str(cfg))
-        assert result.total_nodes_limit == 10
-        assert result.cpus_per_node_limit == ILIFU.cpus_per_node_limit
-
     def test_unknown_facility_name_raises(self, tmp_path, monkeypatch):
         cfg = tmp_path / 'cfg.toml'
         cfg.write_text('[facility]\nname = "badname"\n')

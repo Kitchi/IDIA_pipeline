@@ -55,20 +55,21 @@ def test_module_path_returns_none_for_non_python_files():
 # _resolve_runner — picks the command prefix
 # ---------------------------------------------------------------------------
 
-def test_runner_per_script_container_wins_over_default():
-    """Per-script container override beats facility default_runner."""
-    runner = _resolve_runner(container='/foo/bar.sif',
-                             default_runner='conda run -n env')
+def test_runner_singularity_with_container():
+    """Singularity exec runner appends container path."""
+    runner = _resolve_runner(runner='singularity exec',
+                             container='/foo/bar.sif')
     assert runner == 'singularity exec /foo/bar.sif'
 
 
-def test_runner_falls_back_to_default_when_no_container():
-    runner = _resolve_runner(container='', default_runner='conda run -n py312')
+def test_runner_non_container_ignores_container():
+    """Non-container runner ignores the container parameter."""
+    runner = _resolve_runner(runner='conda run -n py312', container='/foo/bar.sif')
     assert runner == 'conda run -n py312'
 
 
-def test_runner_empty_when_neither_set():
-    assert _resolve_runner(container='', default_runner='') == ''
+def test_runner_empty_when_both_empty():
+    assert _resolve_runner(runner='', container='') == ''
 
 
 # ---------------------------------------------------------------------------
@@ -77,48 +78,45 @@ def test_runner_empty_when_neither_set():
 
 def test_write_command_uses_python_m_for_package_scripts(tmp_pipeline_dir):
     cmd = write_command('partition.py', '--config foo.txt',
-                        mpi_wrapper='mpirun', container='', logfile=False,
-                        default_runner='')
+                        mpi_wrapper='mpirun', runner='', container='', logfile=False)
     assert 'python -m processMeerKAT.crosscal_scripts.partition --config foo.txt' in cmd
     assert 'singularity' not in cmd
     assert 'casa --nogui' not in cmd
 
 
-def test_write_command_prepends_default_runner(tmp_pipeline_dir):
+def test_write_command_prepends_custom_runner(tmp_pipeline_dir):
     cmd = write_command('partition.py', '--config foo.txt',
-                        mpi_wrapper='mpirun', container='', logfile=False,
-                        default_runner='conda run -n py312')
+                        mpi_wrapper='mpirun', runner='conda run -n py312', container='', logfile=False)
     assert cmd.startswith('conda run -n py312 mpirun python -m processMeerKAT.crosscal_scripts.partition')
 
 
-def test_write_command_per_script_container_wraps_in_singularity(tmp_pipeline_dir):
+def test_write_command_singularity_runner_with_container(tmp_pipeline_dir):
     cmd = write_command('partition.py', '--config foo.txt',
-                        mpi_wrapper='mpirun', container='/idia/casa.sif',
-                        logfile=False, default_runner='')
+                        mpi_wrapper='mpirun', runner='singularity exec', container='/idia/casa.sif',
+                        logfile=False)
     assert cmd.startswith('singularity exec /idia/casa.sif mpirun python -m processMeerKAT.crosscal_scripts.partition')
 
 
-def test_write_command_per_script_container_overrides_default_runner(tmp_pipeline_dir):
+def test_write_command_singularity_runner_takes_precedence(tmp_pipeline_dir):
+    """When runner is a container runtime, it takes precedence and uses the container path."""
     cmd = write_command('partition.py', '--config foo.txt',
-                        mpi_wrapper='mpirun', container='/idia/casa.sif',
-                        logfile=False, default_runner='conda run -n py312')
+                        mpi_wrapper='mpirun', runner='singularity exec', container='/idia/casa.sif',
+                        logfile=False)
     assert 'singularity exec /idia/casa.sif' in cmd
-    assert 'conda run' not in cmd
 
 
 def test_write_command_no_p_flag_no_more(tmp_pipeline_dir):
     """`python -P` was a workaround for sys.path[0] script-dir shadowing.
     With `python -m` it's no longer needed."""
     cmd = write_command('partition.py', '--config foo.txt',
-                        mpi_wrapper='mpirun', container='', logfile=False,
-                        default_runner='')
+                        mpi_wrapper='mpirun', runner='', container='', logfile=False)
     assert ' -P ' not in cmd
 
 
 def test_write_command_array_job_for_partition(tmp_pipeline_dir):
     cmd = write_command('partition.py', '--config foo.txt',
-                        mpi_wrapper='mpirun', container='', logfile=False,
-                        default_runner='', SPWs='*:880~933MHz,*:960~1010MHz', nspw=2)
+                        mpi_wrapper='mpirun', runner='', container='', logfile=False,
+                        SPWs='*:880~933MHz,*:960~1010MHz', nspw=2)
     assert 'arr=' in cmd
     assert 'SLURM_ARRAY_TASK_ID' in cmd
     assert 'cd ..' in cmd

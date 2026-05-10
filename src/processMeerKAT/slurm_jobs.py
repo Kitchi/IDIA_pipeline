@@ -117,22 +117,23 @@ def script_module_path(script):
     return None
 
 
-def _resolve_runner(container, default_runner):
+_CONTAINER_RUNTIMES = {'singularity exec', 'docker exec'}
+
+def _resolve_runner(runner, container):
     """Pick the command prefix for a script invocation.
 
-    Per-script container override wins (built as `singularity exec <path>` for
-    backward compat with existing configs). Otherwise the facility's
-    default_runner is used (which itself may be `singularity exec ...`,
-    `conda run -n env ...`, or empty).
+    If runner is a recognized container runtime ("singularity exec", "docker exec"),
+    the container image path is appended. Otherwise runner is used as-is and
+    container is ignored (useful for "conda run -n env" or other custom prefixes).
     """
-    if container:
-        return 'singularity exec {0}'.format(container)
-    return default_runner or ''
+    if runner in _CONTAINER_RUNTIMES:
+        return f'{runner} {container}' if container else ''
+    return runner
 
 
 def write_command(script, args, name='job', mpi_wrapper=MPI_WRAPPER,
-                  container=CONTAINER, casa_script=False, logfile=True,
-                  plot=False, SPWs='', nspw=1, default_runner=''):
+                  runner='', container='', casa_script=False, logfile=True,
+                  plot=False, SPWs='', nspw=1):
     """Write a bash command calling a script.
 
     The invoker is `python -m processMeerKAT.<subpath>.<module>` for any
@@ -145,7 +146,7 @@ def write_command(script, args, name='job', mpi_wrapper=MPI_WRAPPER,
 
     arrayJob = ',' in SPWs and _is_cal_partition(script) and nspw > 1
 
-    runner = _resolve_runner(container, default_runner)
+    runner_prefix = _resolve_runner(runner, container)
     plot_call = 'xvfb-run -a' if plot else ''
 
     module_path = script_module_path(script)
@@ -154,7 +155,7 @@ def write_command(script, args, name='job', mpi_wrapper=MPI_WRAPPER,
     else:
         invoke = f'python {check_path(script, update=True)}'
 
-    parts = [p for p in [runner, mpi_wrapper, plot_call, invoke, args] if p]
+    parts = [p for p in [runner_prefix, mpi_wrapper, plot_call, invoke, args] if p]
     line = ' '.join(parts)
 
     if arrayJob:
@@ -170,10 +171,10 @@ def write_command(script, args, name='job', mpi_wrapper=MPI_WRAPPER,
 
 def write_sbatch(script, args, nodes=1, tasks=16, mem=MEM_PER_NODE_GB_LIMIT,
                  name="job", runname='', plane=1, exclude='',
-                 mpi_wrapper=MPI_WRAPPER, container=CONTAINER,
+                 mpi_wrapper=MPI_WRAPPER, runner='', container='',
                  partition="Main", time="12:00:00", casa_script=False,
                  SPWs='', nspw=1, account='b03-idia-ag', reservation='',
-                 modules=[], justrun=False, default_runner=''):
+                 modules=[], justrun=False):
     """Write a SLURM sbatch file for a single pipeline step."""
 
     if not os.path.exists(LOG_DIR):
@@ -210,8 +211,8 @@ def write_sbatch(script, args, nodes=1, tasks=16, mem=MEM_PER_NODE_GB_LIMIT,
 
     params['command'] = write_command(
         script, args, name=name, mpi_wrapper=mpi_wrapper,
-        container=container, casa_script=casa_script, plot=plot,
-        SPWs=SPWs, nspw=nspw, default_runner=default_runner,
+        runner=runner, container=container, casa_script=casa_script, plot=plot,
+        SPWs=SPWs, nspw=nspw,
     )
     if _is_cal_partition(script) and ',' in SPWs and nspw > 1:
         params['ID'] = '%A_%a'
@@ -657,18 +658,16 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
                plane=1, partition='Main', time='12:00:00', submit=False,
                name='', verbose=False, quiet=False, dependencies='',
                exclude='', account='b03-idia-ag', reservation='',
-               modules=[], timestamp='', justrun=False, target_scripts=None):
+               modules=[], timestamp='', justrun=False, default_runner='', target_scripts=None):
     """Write all sbatch files and the master submission script."""
 
     from .constants import CROSSCAL_CONFIG_KEYS
     from .pipeline import get_config_kwargs
-    from .processMeerKAT import _FACILITY
 
     kwargs = locals()
     crosscal_kwargs = get_config_kwargs(config, 'crosscal', CROSSCAL_CONFIG_KEYS)
     pad_length = len(name)
     target_scripts = target_scripts or []
-    default_runner = getattr(_FACILITY, 'default_runner', '')
 
     for i, script in enumerate(scripts):
         jobname = os.path.splitext(os.path.split(script)[1])[0]
@@ -680,11 +679,11 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
             mem=mem,
             plane=plane if ts else 1,
             mpi_wrapper=mpi_wrapper if ts else 'srun',
-            container=containers[i], partition=partition, time=time,
+            runner=default_runner, container=containers[i], partition=partition, time=time,
             name=jobname, runname=name,
             SPWs=crosscal_kwargs['spw'], nspw=crosscal_kwargs['nspw'],
             exclude=exclude, account=account, reservation=reservation,
-            modules=modules, justrun=justrun, default_runner=default_runner,
+            modules=modules, justrun=justrun,
         )
 
     # Target branch: same scripts can appear here under a `target_` prefix and
@@ -703,11 +702,11 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
             mem=mem,
             plane=plane if ts else 1,
             mpi_wrapper=mpi_wrapper if ts else 'srun',
-            container=ctr or '', partition=partition, time=time,
+            runner=default_runner, container=ctr or '', partition=partition, time=time,
             name=jobname, runname=name,
             SPWs=crosscal_kwargs['spw'], nspw=crosscal_kwargs['nspw'],
             exclude=exclude, account=account, reservation=reservation,
-            modules=modules, justrun=justrun, default_runner=default_runner,
+            modules=modules, justrun=justrun,
         )
         target_sbatch_names.append(jobname + '.sbatch')
 

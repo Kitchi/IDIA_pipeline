@@ -43,7 +43,7 @@ IMAGING_CONFIG_KEYS = [
     'stokes', 'mask', 'rmsmap', 'outlierfile', 'pbthreshold', 'pbband',
 ]
 SLURM_CONFIG_STR_KEYS = [
-    'container', 'mpi_wrapper', 'partition', 'time', 'name',
+    'container', 'runner', 'mpi_wrapper', 'partition', 'time', 'name',
     'dependencies', 'exclude', 'account', 'reservation',
 ]
 SLURM_CONFIG_KEYS = [
@@ -88,7 +88,7 @@ TARGET_SCRIPTS = [
 
 # Facility-specific defaults (these match IlifuFacility; overridden at runtime)
 # Kept here only so legacy code that imports directly still works.
-CONTAINER = '/idia/software/containers/casa-6.5.0-modular.sif'
+CONTAINER = ''
 MPI_WRAPPER = 'mpirun'
 TOTAL_NODES_LIMIT = 79
 CPUS_PER_NODE_LIMIT = 32

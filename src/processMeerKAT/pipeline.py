@@ -148,8 +148,8 @@ def format_args(config, submit, quiet, dependencies, justrun):
                 sky_model_kwargs['partition'] = 'Devel'
                 mpi_wrapper = srun(sky_model_kwargs, qos=True, time=2, mem=0)
                 command = write_command('set_sky_model.py', '-C {0}'.format(config),
-                                        mpi_wrapper=mpi_wrapper, container=kwargs['container'],
-                                        default_runner=getattr(_FACILITY, 'default_runner', ''),
+                                        mpi_wrapper=mpi_wrapper, runner=kwargs.get('runner', ''),
+                                        container=kwargs['container'],
                                         logfile=False)
                 logger.debug('Running: {0}'.format(command))
                 os.system(command)
@@ -277,10 +277,7 @@ def default_config(arg_dict):
     config_parser.overwrite_config(filename, conf_dict={'vis': MS}, conf_sec='data')
 
     from .processMeerKAT import _FACILITY
-    fac_conf = {'name': _FACILITY.name}
-    if _FACILITY.default_runner:
-        fac_conf['default_runner'] = _FACILITY.default_runner
-    config_parser.overwrite_config(filename, conf_dict=fac_conf, conf_sec='facility')
+    config_parser.overwrite_config(filename, conf_dict={'name': _FACILITY.name}, conf_sec='facility')
     config_parser.overwrite_config(
         filename,
         conf_dict={'dopol': arg_dict['dopol']},
@@ -311,8 +308,8 @@ def default_config(arg_dict):
         if arg_dict['verbose']:
             params += ' -v'
         command = write_command('read_ms.py', params, mpi_wrapper=mpi_wrapper,
+                                runner=arg_dict.get('runner', ''),
                                 container=arg_dict['container'],
-                                default_runner=getattr(_FACILITY, 'default_runner', ''),
                                 logfile=False)
         logger.info('Extracting field IDs from "{0}" using CASA.'.format(MS))
         logger.debug('Using command:\n\t{0}'.format(command))
