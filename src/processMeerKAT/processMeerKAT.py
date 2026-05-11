@@ -126,7 +126,7 @@ def validate_args(args, config, parser=None):
             parser,
         )
 
-    if args['mem'] > _FACILITY.mem_per_node_gb_limit:
+    if args['mem'] is not None and args['mem'] > _FACILITY.mem_per_node_gb_limit:
         if args.get('partition') != 'HighMem':
             raise_error(
                 config,
@@ -182,11 +182,11 @@ def parse_args():
     parser.add_argument("-D", "--plane", metavar="num", required=False, type=int, default=1,
                         help="Distribute tasks of this block size before moving onto next node [default: 1].")
     parser.add_argument("-m", "--mem", metavar="num", required=False, type=int,
-                        default=_FACILITY.mem_per_node_gb_limit,
-                        help="Use this many GB of memory per node [default: {0}].".format(_FACILITY.mem_per_node_gb_limit))
+                        default=None,
+                        help="Use this many GB of memory per node [default: facility limit].")
     parser.add_argument("-p", "--partition", metavar="name", required=False, type=str,
-                        default=_FACILITY.default_partition,
-                        help="SLURM partition to use [default: '{0}'].".format(_FACILITY.default_partition))
+                        default=None,
+                        help="SLURM partition to use [default: facility default].")
     parser.add_argument("-T", "--time", metavar="time", required=False, type=str, default="12:00:00",
                         help="Time limit for all jobs [default: '12:00:00'].")
     parser.add_argument("-S", "--scripts", action='append', nargs=3,
@@ -206,14 +206,14 @@ def parse_args():
                         type=parse_scripts, default=TARGET_SCRIPTS,
                         help="Scripts run on the monolithic target MMS in parallel with per-SPW calibrator solves (nspw > 1 only).")
     parser.add_argument("--modules", nargs='*', metavar='module', required=False,
-                        default=_FACILITY.default_modules,
-                        help="Load these modules within each sbatch script.")
+                        default=None,
+                        help="Load these modules within each sbatch script [default: facility default].")
     parser.add_argument("-w", "--mpi_wrapper", metavar="path", required=False, type=str,
-                        default=_FACILITY.default_mpi_wrapper,
-                        help="MPI wrapper for threadsafe scripts [default: '{0}'].".format(_FACILITY.default_mpi_wrapper))
+                        default=None,
+                        help="MPI wrapper for threadsafe scripts [default: facility default].")
     parser.add_argument("-c", "--container", metavar="path", required=False, type=str,
-                        default=_FACILITY.default_container,
-                        help="Singularity container [default: '{0}'].".format(_FACILITY.default_container))
+                        default=None,
+                        help="Singularity container [default: facility default].")
     parser.add_argument("--runner", metavar="prefix", required=False, type=str, default=None,
                         help=(
                             "Container runtime or command prefix for every script invocation. "
@@ -314,6 +314,13 @@ def main():
     if args.build:
         if args.facility:
             _FACILITY = get_facility(args.facility)
+        # Fill in facility defaults for any arg the user didn't explicitly set
+        args.mem         = args.mem         if args.mem         is not None else _FACILITY.mem_per_node_gb_limit
+        args.partition   = args.partition   or _FACILITY.default_partition
+        args.container   = args.container   if args.container   is not None else _FACILITY.default_container
+        args.modules     = args.modules     if args.modules     is not None else list(_FACILITY.default_modules)
+        args.mpi_wrapper = args.mpi_wrapper or _FACILITY.default_mpi_wrapper
+        # runner: explicit --runner clears container; otherwise use facility runner
         if args.runner is not None:
             args.container = ''
         else:

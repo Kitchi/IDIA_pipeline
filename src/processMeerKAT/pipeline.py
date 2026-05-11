@@ -300,7 +300,9 @@ def default_config(arg_dict):
         if arg_dict['local']:
             mpi_wrapper = ''
         else:
-            mpi_wrapper = srun(arg_dict)
+            from .processMeerKAT import _FACILITY
+            account = arg_dict.get('account') or _FACILITY.default_account or ''
+            mpi_wrapper = srun({**arg_dict, 'account': account})
 
         params = '-B -M {MS} -C {config} -N {nodes} -t {ntasks_per_node}'.format(**arg_dict)
         if arg_dict['dopol']:
@@ -312,7 +314,7 @@ def default_config(arg_dict):
                                 container=arg_dict['container'],
                                 logfile=False)
         logger.info('Extracting field IDs from "{0}" using CASA.'.format(MS))
-        logger.debug('Using command:\n\t{0}'.format(command))
+        logger.info('Running: %s', command)
         os.system(command)
     else:
         logger.info('Skipping extraction of field IDs and assuming nspw=1.')

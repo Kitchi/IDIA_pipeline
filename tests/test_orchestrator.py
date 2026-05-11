@@ -227,6 +227,14 @@ class TestSrun:
         result = pmk.srun(self._make_arg_dict(account='my-group'))
         assert '--account=my-group' in result
 
+    def test_no_account_when_none(self):
+        result = pmk.srun(self._make_arg_dict(account=None))
+        assert '--account' not in result
+
+    def test_no_account_when_empty_string(self):
+        result = pmk.srun(self._make_arg_dict(account=''))
+        assert '--account' not in result
+
     def test_qos_interactive(self):
         result = pmk.srun(self._make_arg_dict(), qos=True)
         assert 'qos-interactive' in result

@@ -68,9 +68,11 @@ def check_path(path, update=False):
 
 def srun(arg_dict, qos=True, time=10, mem=4):
     """Build an srun command string with resource parameters."""
-    call = 'srun --time={0} --mem={1}GB --partition={2} --account={3}'.format(
-        time, mem, arg_dict['partition'], arg_dict['account']
+    call = 'srun --time={0} --mem={1}GB --partition={2}'.format(
+        time, mem, arg_dict['partition']
     )
+    if arg_dict.get('account'):
+        call += ' --account={0}'.format(arg_dict['account'])
     if qos:
         call += ' --qos qos-interactive'
     if arg_dict.get('exclude', '') != '':
