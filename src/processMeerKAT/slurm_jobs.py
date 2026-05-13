@@ -157,7 +157,16 @@ def write_command(script, args, name='job', mpi_wrapper=MPI_WRAPPER,
     else:
         invoke = f'python {check_path(script, update=True)}'
 
-    parts = [p for p in [runner_prefix, mpi_wrapper, plot_call, invoke, args] if p]
+    # Container runtimes (singularity, docker) execute on compute nodes: the
+    # cluster scheduler wrapper (srun/mpirun) must come first to dispatch the
+    # job, then the container runtime runs inside that allocation.
+    # Non-container runners (conda run, custom prefixes) own the environment and
+    # must come first so the right interpreter is on PATH when the wrapper runs.
+    if runner in _CONTAINER_RUNTIMES:
+        ordered = [mpi_wrapper, runner_prefix, plot_call, invoke, args]
+    else:
+        ordered = [runner_prefix, mpi_wrapper, plot_call, invoke, args]
+    parts = [p for p in ordered if p]
     line = ' '.join(parts)
 
     if arrayJob:

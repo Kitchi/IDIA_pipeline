@@ -94,7 +94,7 @@ def test_write_command_singularity_runner_with_container(tmp_pipeline_dir):
     cmd = write_command('partition.py', '--config foo.txt',
                         mpi_wrapper='mpirun', runner='singularity exec', container='/idia/casa.sif',
                         logfile=False)
-    assert cmd.startswith('singularity exec /idia/casa.sif mpirun python -m processMeerKAT.crosscal_scripts.partition')
+    assert cmd.startswith('mpirun singularity exec /idia/casa.sif python -m processMeerKAT.crosscal_scripts.partition')
 
 
 def test_write_command_singularity_runner_takes_precedence(tmp_pipeline_dir):
