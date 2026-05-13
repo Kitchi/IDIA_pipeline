@@ -295,7 +295,7 @@ def setup_logger(config, verbose=False):
         config_dict = config_parser.parse_config(config)[0]
         if 'slurm' in config_dict and 'verbose' in config_dict['slurm']:
             verbose = config_dict['slurm']['verbose']
-    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
+    logging.getLogger('processMeerKAT').setLevel(logging.DEBUG if verbose else logging.INFO)
 
 
 # ---------------------------------------------------------------------------
