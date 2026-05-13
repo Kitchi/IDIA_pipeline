@@ -121,15 +121,29 @@ def script_module_path(script):
 
 _CONTAINER_RUNTIMES = {'singularity exec', 'docker exec'}
 
-def _resolve_runner(runner, container):
+# Parent directory of the processMeerKAT package: the dir that must be on
+# PYTHONPATH inside a container so "python -m processMeerKAT.*" resolves.
+# Two dirname() calls up from this file: .../processMeerKAT/slurm_jobs.py
+# → .../processMeerKAT/ → .../<site-packages or src>/
+_PKG_PARENT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _resolve_runner(runner, container, pythonpath=''):
     """Pick the command prefix for a script invocation.
 
     If runner is a recognized container runtime ("singularity exec", "docker exec"),
     the container image path is appended. Otherwise runner is used as-is and
     container is ignored (useful for "conda run -n env" or other custom prefixes).
+
+    For container runtimes, if pythonpath is given it is forwarded into the
+    container via --env PYTHONPATH so the processMeerKAT package is importable
+    regardless of where on the host it was installed.
     """
     if runner in _CONTAINER_RUNTIMES:
-        return f'{runner} {container}' if container else ''
+        if not container:
+            return ''
+        env_flag = f' --env PYTHONPATH={pythonpath}' if pythonpath else ''
+        return f'{runner}{env_flag} {container}'
     return runner
 
 
@@ -148,7 +162,8 @@ def write_command(script, args, name='job', mpi_wrapper=MPI_WRAPPER,
 
     arrayJob = ',' in SPWs and _is_cal_partition(script) and nspw > 1
 
-    runner_prefix = _resolve_runner(runner, container)
+    pythonpath = _PKG_PARENT if runner in _CONTAINER_RUNTIMES else ''
+    runner_prefix = _resolve_runner(runner, container, pythonpath=pythonpath)
     plot_call = 'xvfb-run -a' if plot else ''
 
     module_path = script_module_path(script)
