@@ -271,12 +271,15 @@ def default_config(arg_dict):
 
     copyfile('{0}/{1}'.format(SCRIPT_DIR, CONFIG), filename)
 
+    from .processMeerKAT import _FACILITY
+    if not arg_dict.get('local'):
+        arg_dict['account'] = _FACILITY.validate_account(arg_dict.get('account'), filename)
+
     slurm_dict = get_slurm_dict(arg_dict, SLURM_CONFIG_KEYS)
 
     config_parser.overwrite_config(filename, conf_dict=slurm_dict, conf_sec='slurm')
     config_parser.overwrite_config(filename, conf_dict={'vis': MS}, conf_sec='data')
 
-    from .processMeerKAT import _FACILITY
     config_parser.overwrite_config(filename, conf_dict={'name': _FACILITY.name}, conf_sec='facility')
     config_parser.overwrite_config(
         filename,
@@ -300,9 +303,7 @@ def default_config(arg_dict):
         if arg_dict['local']:
             mpi_wrapper = ''
         else:
-            from .processMeerKAT import _FACILITY
-            account = arg_dict.get('account') or _FACILITY.default_account or ''
-            mpi_wrapper = srun({**arg_dict, 'account': account})
+            mpi_wrapper = srun(arg_dict)
 
         params = '-B -M {MS} -C {config} -N {nodes} -t {ntasks_per_node}'.format(**arg_dict)
         if arg_dict['dopol']:

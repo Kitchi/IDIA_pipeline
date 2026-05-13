@@ -175,7 +175,7 @@ def write_sbatch(script, args, nodes=1, tasks=16, mem=MEM_PER_NODE_GB_LIMIT,
                  name="job", runname='', plane=1, exclude='',
                  mpi_wrapper=MPI_WRAPPER, runner='', container='',
                  partition="Main", time="12:00:00", casa_script=False,
-                 SPWs='', nspw=1, account='b03-idia-ag', reservation='',
+                 SPWs='', nspw=1, account='', reservation='',
                  modules=[], justrun=False):
     """Write a SLURM sbatch file for a single pipeline step."""
 
@@ -659,7 +659,7 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
                nodes=8, ntasks_per_node=4, mem=MEM_PER_NODE_GB_LIMIT,
                plane=1, partition='Main', time='12:00:00', submit=False,
                name='', verbose=False, quiet=False, dependencies='',
-               exclude='', account='b03-idia-ag', reservation='',
+               exclude='', account='', reservation='',
                modules=[], timestamp='', justrun=False, default_runner='', target_scripts=None):
     """Write all sbatch files and the master submission script."""
 
