@@ -128,6 +128,26 @@ _CONTAINER_RUNTIMES = {'singularity exec', 'docker exec'}
 _PKG_PARENT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def _container_pythonpath():
+    """Build the PYTHONPATH string for container invocations.
+
+    Returns a colon-separated list of directories that must be on PYTHONPATH
+    inside the container so processMeerKAT and its pure-Python dependencies
+    (notably tomli for Python < 3.11) are importable. All paths are derived
+    from the host's installed locations — no hardcoding.
+    """
+    paths = [_PKG_PARENT]
+    # tomli is a declared dependency; for editable installs its site-packages
+    # dir differs from _PKG_PARENT (src/), so we locate it explicitly.
+    import importlib.util
+    spec = importlib.util.find_spec('tomli')
+    if spec and spec.origin:
+        tomli_parent = os.path.dirname(os.path.dirname(os.path.abspath(spec.origin)))
+        if tomli_parent not in paths:
+            paths.append(tomli_parent)
+    return ':'.join(paths)
+
+
 def _resolve_runner(runner, container, pythonpath=''):
     """Pick the command prefix for a script invocation.
 
@@ -162,7 +182,7 @@ def write_command(script, args, name='job', mpi_wrapper=MPI_WRAPPER,
 
     arrayJob = ',' in SPWs and _is_cal_partition(script) and nspw > 1
 
-    pythonpath = _PKG_PARENT if runner in _CONTAINER_RUNTIMES else ''
+    pythonpath = _container_pythonpath() if runner in _CONTAINER_RUNTIMES else ''
     runner_prefix = _resolve_runner(runner, container, pythonpath=pythonpath)
     plot_call = 'xvfb-run -a' if plot else ''
 

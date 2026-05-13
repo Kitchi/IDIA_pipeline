@@ -43,13 +43,19 @@ def _validate_account(account, config, parser=None):
         ).read().split()
         if default:
             logger.info(
-                f"No account specified. Authorized groups: {', '.join(available)}."
+                f"No account specified. Using default '{default}'. "
+                f"All authorized groups: {', '.join(available)}."
             )
             return default
-        msg = "No Slurm account provided and no default detected for your user."
         if available:
-            msg += f" Please specify one of: {', '.join(available)}."
-        raise_error(config, msg, parser)
+            logger.warning(
+                f"No default account set for your user. "
+                f"Using first available group '{available[0]}'. "
+                f"All authorized groups: {', '.join(available)}. "
+                f"Override with -A / --account."
+            )
+            return available[0]
+        raise_error(config, "No Slurm account found for your user.", parser)
 
     check = os.popen(
         f"sacctmgr show associations user={user} account={account} --noheader"
