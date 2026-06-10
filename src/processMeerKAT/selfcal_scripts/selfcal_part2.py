@@ -397,21 +397,24 @@ def mask_image(vis, refant, dopol, nloops, loop, cell, robust, imsize, wprojplan
 
     return pixmask
 
-if __name__ == '__main__':
+def main(ctx):
+    from .. import config_parser
 
-    args,params = bookkeeping.get_selfcal_params()
+    params = bookkeeping._build_selfcal_params(ctx.config, ctx.config_path)
     loop = params['loop']
 
     selfcal_part2(**params)
-    rmsmap,outlierfile = find_outliers(**params,step='bdsf')
+    rmsmap, outlierfile = find_outliers(**params, step='bdsf')
     pixmask = mask_image(**params)
 
     loop += 1
 
-    if config_parser.has_section(args['config'], 'image'):
-        config_parser.overwrite_config(args['config'], conf_dict={'mask': pixmask}, conf_sec='image')
-        config_parser.overwrite_config(args['config'], conf_dict={'rmsmap': rmsmap}, conf_sec='image')
-        config_parser.overwrite_config(args['config'], conf_dict={'outlierfile': outlierfile}, conf_sec='image')
-    config_parser.overwrite_config(args['config'], conf_dict={'loop' : loop},  conf_sec='selfcal')
+    if config_parser.has_section(ctx.config, 'image'):
+        config_parser.overwrite_config(ctx.config_path, conf_dict={'mask': pixmask}, conf_sec='image')
+        config_parser.overwrite_config(ctx.config_path, conf_dict={'rmsmap': rmsmap}, conf_sec='image')
+        config_parser.overwrite_config(ctx.config_path, conf_dict={'outlierfile': outlierfile}, conf_sec='image')
+    config_parser.overwrite_config(ctx.config_path, conf_dict={'loop': loop}, conf_sec='selfcal')
 
-    bookkeeping.rename_logs(logfile)
+
+if __name__ == '__main__':
+    bookkeeping.run_script(main, logfile)

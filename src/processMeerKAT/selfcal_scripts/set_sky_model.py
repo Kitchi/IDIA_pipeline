@@ -10,8 +10,12 @@ from casatasks import casalog
 logfile=casalog.logfile()
 casalog.setlogfile('logs/{SLURM_JOB_NAME}-{SLURM_JOB_ID}.casa'.format(**os.environ))
 
+
+def main(ctx):
+    params = bookkeeping._build_selfcal_params(ctx.config, ctx.config_path)
+    find_outliers(**params, step='sky')
+
+
 if __name__ == '__main__':
 
-    args,params = bookkeeping.get_selfcal_params()
-    find_outliers(**params,step='sky')
-    bookkeeping.rename_logs(logfile)
+    bookkeeping.run_script(main, logfile)

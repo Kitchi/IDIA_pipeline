@@ -148,8 +148,10 @@ def science_image(vis, cell, robust, imsize, wprojplanes, niter, threshold, mult
     if 'I' in stokes.upper():
         do_pb_corr(imname, pbthreshold, pbband)
 
-if __name__ == '__main__':
-
-    args,params = bookkeeping.get_imaging_params()
+def main(ctx):
+    params = bookkeeping._build_imaging_params(ctx.config)
     science_image(**params)
-    bookkeeping.rename_logs(logfile)
+
+
+if __name__ == '__main__':
+    bookkeeping.run_script(main, logfile)

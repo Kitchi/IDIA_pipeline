@@ -13,7 +13,7 @@ SPW index.
 We roll our own row-copy via ``casatools.table`` rather than relying on CASA's
 higher-level table-concat helpers, because caltable concat across CASA
 versions has historically been fragile. The combined output paths are written
-to the ``[run]`` config section so ``apply_to_target.py`` can find them.
+to the ``[state]`` config section so ``apply_to_target.py`` can find them.
 """
 import os
 import sys
@@ -32,7 +32,7 @@ import casampi
 # Caltable extensions produced by the cross-cal chain. Order matters only for
 # logging — each is concatenated independently.
 CAL_EXTS = ['kcal', 'bcal', 'gcal', 'fluxscale', 'pcal', 'xcal', 'xdel']
-# Mapping from extension to the [run] config key holding the combined path.
+# Mapping from extension to the [state] config key holding the combined path.
 RUN_KEYS = {
     'kcal': 'combined_kcorr',
     'bcal': 'combined_bpass',
@@ -176,7 +176,7 @@ def main(ctx):
 
     # Discover per-SPW dirs from the top-level run directory (CWD).
     top_dir = os.getcwd()
-    spw_entries = bookkeeping.get_all_spw_caldirs(top_dir, config_name=os.path.basename(args['config']))
+    spw_entries = bookkeeping.get_all_spw_caldirs(top_dir, config_name=os.path.basename(ctx.config_path))
     if not spw_entries:
         raise RuntimeError("concat_caltables: no per-SPW caldirs found under {0}".format(top_dir))
 
@@ -208,7 +208,7 @@ def main(ctx):
         raise RuntimeError("concat_caltables produced no combined tables — check per-SPW caldirs.")
 
     config_parser.overwrite_config(
-        args['config'],
+        ctx.config_path,
         conf_sec='state',
         sec_comment='# Internal variables for pipeline execution',
         conf_dict=combined_paths,

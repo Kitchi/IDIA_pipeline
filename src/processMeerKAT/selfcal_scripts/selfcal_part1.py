@@ -82,8 +82,10 @@ def selfcal_part1(vis, refant, dopol, nloops, loop, cell, robust, imsize, wprojp
             pblimit=-1, mask=pixmask, parallel = True)
 
 
-if __name__ == '__main__':
-
-    args,params = bookkeeping.get_selfcal_params()
+def main(ctx):
+    params = bookkeeping._build_selfcal_params(ctx.config, ctx.config_path)
     selfcal_part1(**params)
-    bookkeeping.rename_logs(logfile)
+
+
+if __name__ == '__main__':
+    bookkeeping.run_script(main, logfile)

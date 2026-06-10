@@ -307,28 +307,14 @@ def run_script(func, logfile=''):
 # Selfcal parameter loading and validation
 # ---------------------------------------------------------------------------
 
-def get_selfcal_params(config_path=None):
-    """Load and validate selfcal parameters from config.
-
-    Parameters
-    ----------
-    config_path : str, optional
-        Path to config file.  If omitted, read from -C/--config in sys.argv.
-
-    Returns
-    -------
-    (args_dict, params_dict)
-    """
-    if config_path is None:
-        config_path = _parse_script_config()
-
-    taskvals, _ = config_parser.parse_config(config_path)
-    params = dict(taskvals['selfcal'])
+def _build_selfcal_params(config, config_path):
+    """Build and validate selfcal parameters from an already-loaded config dict."""
+    params = dict(config['selfcal'])
     other_params = list(params.keys())
 
-    params['vis']    = taskvals['data']['vis']
-    params['refant'] = taskvals['crosscal']['refant']
-    params['dopol']  = taskvals['state']['dopol']
+    params['vis']    = config['data']['vis']
+    params['refant'] = config['crosscal']['refant']
+    params['dopol']  = config['state']['dopol']
 
     if params['dopol'] and 'G' in params.get('gaintype', ''):
         logger.warning(
@@ -381,7 +367,48 @@ def get_selfcal_params(config_path=None):
             logger.error("Selfcal config error in '%s': %s", config_path, msg)
         sys.exit(1)
 
+    return params
+
+
+def get_selfcal_params(config_path=None):
+    """Load and validate selfcal parameters from config.
+
+    Parameters
+    ----------
+    config_path : str, optional
+        Path to config file.  If omitted, read from -C/--config in sys.argv.
+
+    Returns
+    -------
+    (args_dict, params_dict)
+    """
+    if config_path is None:
+        config_path = _parse_script_config()
+
+    taskvals, _ = config_parser.parse_config(config_path)
+    params = _build_selfcal_params(taskvals, config_path)
     return {'config': config_path}, params
+
+
+def _build_imaging_params(config):
+    """Build imaging parameters from an already-loaded config dict."""
+    params = dict(config['image'])
+    params['vis']     = config['data']['vis']
+    params['keepmms'] = config['crosscal']['keepmms']
+
+    if params.get('outlierfile') and os.path.exists(params['outlierfile']):
+        outliers = open(params['outlierfile']).read()
+        for name in re.findall(r'imagename=(.*)\n', outliers):
+            mask = '{0}.mask'.format(name)
+            if os.path.exists(mask):
+                newname = '{0}.old'.format(mask)
+                logger.info(
+                    'Re-using old mask for "%s". Renaming "%s" → "%s".',
+                    name, mask, newname,
+                )
+                os.rename(mask, newname)
+
+    return params
 
 
 def get_imaging_params(config_path=None):
@@ -396,22 +423,7 @@ def get_imaging_params(config_path=None):
         config_path = _parse_script_config()
 
     taskvals, _ = config_parser.parse_config(config_path)
-    params = dict(taskvals['image'])
-    params['vis']     = taskvals['data']['vis']
-    params['keepmms'] = taskvals['crosscal']['keepmms']
-
-    if params.get('outlierfile') and os.path.exists(params['outlierfile']):
-        outliers = open(params['outlierfile']).read()
-        for name in re.findall(r'imagename=(.*)\n', outliers):
-            mask = '{0}.mask'.format(name)
-            if os.path.exists(mask):
-                newname = '{0}.old'.format(mask)
-                logger.info(
-                    'Re-using old mask for "%s". Renaming "%s" → "%s".',
-                    name, mask, newname,
-                )
-                os.rename(mask, newname)
-
+    params = _build_imaging_params(taskvals)
     return {'config': config_path}, params
 
 

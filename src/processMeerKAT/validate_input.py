@@ -4,7 +4,7 @@
 import sys
 import os
 
-from .config_parser import validate_args as va
+from .config_parser import typed_get
 from . import processMeerKAT
 from . import read_ms, bookkeeping
 
@@ -20,7 +20,7 @@ logging.Formatter.converter = gmtime
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="%(asctime)-15s %(levelname)s: %(message)s", level=logging.INFO)
 
-def main(args,taskvals):
+def main(ctx):
     """
     Parse the input config file (command line argument) and validate that the
     parameters look okay
@@ -33,21 +33,21 @@ def main(args,taskvals):
 
     logger.info('This is version {0} of the pipeline - commit ID {1}'.format(processMeerKAT.__version__,commit))
 
-    visname = va(taskvals, 'data', 'vis', str)
-    calcrefant = va(taskvals, 'crosscal', 'calcrefant', bool)
-    refant = taskvals['crosscal']['refant']
+    visname = typed_get(ctx.config, 'data', 'vis', str)
+    calcrefant = typed_get(ctx.config, 'crosscal', 'calcrefant', bool)
+    refant = ctx.config['crosscal']['refant']
     if type(refant) is str and 'm' in refant:
-        refant = va(taskvals, 'crosscal', 'refant', str)
+        refant = typed_get(ctx.config, 'crosscal', 'refant', str)
     else:
-        refant = va(taskvals, 'crosscal', 'refant', int)
-    nspw = va(taskvals, 'crosscal', 'nspw', int)
-    fields = bookkeeping.get_field_ids(taskvals['fields'])
+        refant = typed_get(ctx.config, 'crosscal', 'refant', int)
+    nspw = typed_get(ctx.config, 'crosscal', 'nspw', int)
+    fields = bookkeeping.get_field_ids(ctx.config['fields'])
 
     # Check if the reference antenna exists, and complain and quit if it doesn't
     if not calcrefant:
-        refant = va(taskvals, 'crosscal', 'refant', str)
+        refant = typed_get(ctx.config, 'crosscal', 'refant', str)
         msmd.open(visname)
-        read_ms.check_refant(MS=visname, refant=refant, config=args['config'], warn=False)
+        read_ms.check_refant(MS=visname, refant=refant, config=ctx.config_path, warn=False)
         msmd.done()
 
     if not os.path.exists(visname):

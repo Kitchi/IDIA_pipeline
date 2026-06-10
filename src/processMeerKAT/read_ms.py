@@ -427,10 +427,10 @@ def main():
         parang = parang_coverage(args.MS, calfield)
 
     if npol < 4:
-        logger.warning("Only {0} polarisations present in '{1}'. Any attempted polarisation calibration will fail, so setting dopol=False in [run] section of '{2}'.".format(npol,args.MS,args.config))
+        logger.warning("Only {0} polarisations present in '{1}'. Any attempted polarisation calibration will fail, so setting dopol=False in [state] section of '{2}'.".format(npol,args.MS,args.config))
         dopol = False
     elif 0 < parang < 30:
-        logger.warning("Parallactic angle coverage is < 30 deg. Polarisation calibration will most likely fail, so setting dopol=False in [run] section of '{0}'.".format(args.config))
+        logger.warning("Parallactic angle coverage is < 30 deg. Polarisation calibration will most likely fail, so setting dopol=False in [state] section of '{0}'.".format(args.config))
         dopol = False
 
     check_refant(args.MS, refant, args.config, warn=True)
