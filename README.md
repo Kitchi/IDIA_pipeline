@@ -2,69 +2,116 @@
    <img src="https://raw.githubusercontent.com/idia-pipelines/idia-pipelines.github.io/master/assets/idia_logo.jpg" alt="IDIA pipelines"/>
 </p>
 
-# The IDIA MeerKAT Pipeline
+# The IDIA MeerKAT Pipeline (v2.0)
 
-The IDIA MeerKAT pipeline is a radio interferometric calibration pipeline designed to process MeerKAT data. **It is under regular development, and so far implements cross-calibration, selfcal-calibration, and science imaging. Please report any issues you find in the [GitHub issues](https://github.com/idia-astro/pipelines/issues).**
+The IDIA MeerKAT pipeline is a radio interferometric calibration pipeline designed to process MeerKAT data. It implements cross-calibration, self-calibration, and science imaging.
 
 ## Requirements
 
-This pipeline is designed to run on the Ilifu cluster, making use of SLURM and MPICASA. For other uses, please contact the authors. Currently, use of the pipeline requires access to the Ilifu cloud infrastructure. You can request access using the following [form](http://docs.ilifu.ac.za/#/getting_started/request_access).
+- **Python**: >= 3.10
+- **CASA**: Required for all processing (usually provided via a container).
+- **Cluster**: Designed for SLURM-based clusters (e.g., Ilifu).
+- **Dependencies**: `tomli` (for Python < 3.11).
+
+## Installation
+
+The pipeline is now packaged as a professional Python library.
+
+### Using pip
+Clone the repository and install it into your environment:
+```bash
+git clone https://github.com/idia-astro/pipelines.git
+cd IDIA_pipeline
+pip install .
+```
+For developers who wish to modify the code, use an editable install:
+```bash
+pip install -e .
+```
 
 ## Quick Start
 
-**Note: It is not necessary to copy the raw data (i.e. the MS) to your working directory. The first step of the pipeline does this for you by creating an MMS or MS, and does not attempt to manipulate the raw data (e.g. stored in `/idia/projects` - see [data format](https://idia-pipelines.github.io/docs/processMeerKAT/Example-Use-Cases/#data-format)).**
+**Note: It is not necessary to copy the raw data (i.e. the MS) to your working directory. The pipeline handles MS/MMS creation and does not manipulate raw data stored in read-only projects directories.**
 
-## 1. Setup the pipeline in your environment
+### 1. Build a config file
+The pipeline uses **TOML** for configuration, providing a human-readable and structured way to define the processing flow.
 
-In order to use the `processMeerKAT.py` script, source the `setup.sh` file, which can be done on [ilifu](https://docs.ilifu.ac.za/#/) as
+#### a. For continuum/spectral line processing:
+```bash
+processMeerKAT -B -C myconfig.toml -M mydata.ms
+```
 
-        source /idia/software/pipelines/master/setup.sh
+#### b. For polarization processing:
+```bash
+processMeerKAT -B -C myconfig.toml -M mydata.ms -P
+```
 
-which will add the correct paths to your `$PATH` and `$PYTHONPATH` in order to correctly use the pipeline. You could consider adding this to your `~/.profile` or `~/.bashrc` for future use.
+#### c. Including self-calibration:
+```bash
+processMeerKAT -B -C myconfig.toml -M mydata.ms -2
+```
 
-### 2. Build a config file:
+#### d. Including science imaging:
+```bash
+processMeerKAT -B -C myconfig.toml -M mydata.ms -I
+```
 
-#### a. For continuum/spectral line processing :
+This generates a `myconfig.toml` file. You can edit this file to adjust SLURM resources (`nodes`, `mem`, `partition`) or modify the sequence of scripts.
 
-        processMeerKAT.py -B -C myconfig.txt -M mydata.ms
+### 2. Run the pipeline
+```bash
+processMeerKAT -R -C myconfig.toml
+```
+This will create `submit_pipeline.sh`, which you can then run to submit all pipeline jobs to the SLURM queue:
+```bash
+./submit_pipeline.sh
+```
 
-#### b. For polarization processing :
+### Monitoring and Maintenance
+- `summary.sh`: Provides a brief overview of job status.
+- `findErrors.sh`: Checks log files for commonly reported errors.
+- `killJobs.sh`: Kills all jobs from the current pipeline run.
+- `cleanup.sh`: Wipes all intermediate data products.
 
-        processMeerKAT.py -B -C myconfig.txt -M mydata.ms -P
+For a full list of command line options, run `processMeerKAT -h`.
 
-#### c. Including self-calibration :
+---
 
-        processMeerKAT.py -B -C myconfig.txt -M mydata.ms -2
+## 🚀 New Features in v2.0
 
-#### d. Including science imaging :
+### 🔌 Script Plugin API
+You can now contribute or use custom scripts without modifying the pipeline core.
+1. Place your Python script (e.g., `my_custom_flag.py`) in your current working directory.
+2. Add the script to the `scripts` array in your `config.toml`:
+   ```toml
+   scripts = [
+     { script = "my_custom_flag.py", mpi = true },
+     { script = "setjy.py", mpi = true },
+     # ...
+   ]
+   ```
+The pipeline automatically discovers scripts in the current directory first, allowing you to override built-in scripts with local versions.
 
-        processMeerKAT.py -B -C myconfig.txt -M mydata.ms -I
+### 🐳 Container & Runner Support
+The pipeline now supports an explicit execution runner, making it easy to use Singularity, Apptainer, or Conda environments.
+```bash
+processMeerKAT -B -C config.toml -M data.ms --runner "singularity exec /path/to/casa.sif"
+```
+The `--runner` prefix is embedded into every SLURM script and is used during the `-B` phase for MS metadata extraction.
 
-This defines several variables that are read by the pipeline while calibrating the data, as well as requesting resources on the cluster. The [config file parameters](https://idia-pipelines.github.io/docs/processMeerKAT/config-files) are described by in-line comments in the config file itself wherever possible. The `[-P --dopol]` option can be used in conjunction with the `[-2 --do2GC]` and `[-I --science_image]` options to enable polarization calibration as well as [self-calibration](https://idia-pipelines.github.io/docs/processMeerKAT/self-calibration-in-processmeerkat) and [science imaging](https://idia-pipelines.github.io/docs/processMeerKAT/science-imaging-in-processmeerkat).
+### 🏢 Facility Abstraction
+The pipeline is no longer locked to a single cluster. It uses a facility abstraction layer that allows it to run on any SLURM-based facility. Facility-specific limits (memory, node counts) are handled via `FacilityConfig` profiles.
 
-### 3. To run the pipeline:
+### 📊 Runtime State Management
+To ensure your original `config.toml` remains a template, the pipeline creates a `pipeline_state.toml` at runtime. 
+- **`config.toml`**: User-defined settings (read-only during execution).
+- **`pipeline_state.toml`**: Runtime state (tracks the current working MS, calibration tables, and progress).
 
-        processMeerKAT.py -R -C myconfig.txt
+## Using multiple spectral windows (SPW Splitting)
 
-This will create `submit_pipeline.sh`, which you can then run with `./submit_pipeline.sh` to submit all pipeline jobs to the SLURM queue.
+The pipeline splits the MeerKAT band into several spectral windows (SPWs) and processes each concurrently to maximize cluster throughput.
 
-Other convenience scripts are also created that allow you to monitor and (if necessary) kill the jobs.
+1. **Calibration output**: All output specific to an SPW (calibration tables, logs, plots) is stored within that SPW's dedicated directory.
+2. **Top-level logs**: Logs in the root directory correspond to `precal_scripts` and `postcal_scripts` (e.g., `partition.py` and `concat_caltables.py`).
 
-* `summary.sh` provides a brief overview of the status of the jobs in the pipeline
-* `findErrors.sh` checks the log files for commonly reported errors (after the jobs have run)
-* `killJobs.sh` kills all the jobs from the current run of the pipeline, ignoring any other (unrelated) jobs you might have running.
-* `cleanup.sh` wipes all the intermediate data products created by the pipeline. This is intended to be launched after the pipeline has run and the output is verified to be good.
-
-For help, run `processMeerKAT.py -h`, which provides a brief description of all the [command line options](https://idia-pipelines.github.io/docs/processMeerKAT/using-the-pipeline#command-line-options).
-
-## Using multiple spectral windows (new in v1.1)
-
-Starting with v1.1 of the processMeerKAT pipeline, the default behaviour is to split up the MeerKAT band into several spectral windows (SPWs), and process each concurrently. This results in a few major usability changes as outlined below:
-
-1. **Calibration output** : Since the calibration is performed independently per SPW, all the output specific to that SPW is within its own directory. Output such as the calibration tables, logs, plots etc. per SPW can be found within each SPW directory.
-
-2. **Logs in the top level directory** : Logs in the top level directory (*i.e.,* the directory where the pipeline was launched) correspond to the scripts in the `precal_scripts` and `postcal_scripts` variables in the config file. These scripts are run from the top level before and after calibration respectively. By default these correspond to the scripts to calculate the reference antenna (if enabled), partition the data into SPWs, and concat the individual SPWs back into a single MS/MMS.
-
-More detailed information about SPW splitting is found [here](https://idia-pipelines.github.io/docs/processMeerKAT/config-files#spw-splitting).
-
-The documentation can be accessed on the [pipelines website](https://idia-pipelines.github.io/docs/processMeerKAT), or on the [Github wiki](https://github.com/idia-astro/pipelines/wiki).
+For more detailed information, refer to the documentation on the [pipelines website](https://idia-pipelines.github.io/docs/processMeerKAT).
