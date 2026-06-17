@@ -146,7 +146,10 @@ def remove_section(filename, section):
 # Typed value extraction
 # ---------------------------------------------------------------------------
 
-def typed_get(config_dict, section, key, dtype, default=None):
+_MISSING = object()
+
+
+def typed_get(config_dict, section, key, dtype, default=_MISSING):
     """Extract and type-coerce a value from a parsed config dict.
 
     Parameters
@@ -167,15 +170,14 @@ def typed_get(config_dict, section, key, dtype, default=None):
     -----
     Does NOT mutate config_dict.  Each call is a read-only operation.
     """
-    if default is not None:
-        val = config_dict.get(section, {}).get(key, default)
-    else:
-        try:
-            val = config_dict[section][key]
-        except KeyError:
+    try:
+        val = config_dict[section][key]
+    except KeyError:
+        if default is _MISSING:
             raise KeyError(
                 f"Missing required key '{key}' in [{section}]"
             )
+        return default  # returned as-is, without type coercion
 
     if dtype is str:
         return str(val).rstrip('/ ')
