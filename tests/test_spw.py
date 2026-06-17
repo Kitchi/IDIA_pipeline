@@ -184,6 +184,20 @@ class TestSpwSplit:
         finally:
             os.chdir(old_dir)
 
+    def test_badfreqrange_kept_when_remove_false(self, tmp_path):
+        """With remove=False (a badfreq_uvrange is set), an SPW inside a bad
+        range is kept rather than dropped — it's only partially flagged."""
+        old_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            # Same setup as test_badfreqrange_removes_spw, but remove=False.
+            cfg = self._make_config(tmp_path, '*:880~1080MHz', 2, badfreqranges=['880~980MHz'])
+            returned_nspw = pmk.spw_split('*:880~1080MHz', 2, cfg, 232, ['880~980MHz'],
+                                          'test.ms', partition=True, remove=False)
+            assert returned_nspw == 2
+        finally:
+            os.chdir(old_dir)
+
     def test_prebuilt_comma_separated_spws(self, tmp_path):
         """Comma-separated SPW string: each element is a separate directory."""
         old_dir = os.getcwd()

@@ -230,9 +230,13 @@ def format_args(config, submit, quiet, dependencies, justrun):
             conf_dict={'timestamp': kwargs['timestamp']},
             conf_sec='state',
         )
+        # With a badfreq_uvrange set, bad bands are flagged only on those
+        # baselines (in flag_round_1), so the rest of the band is still usable
+        # — keep those SPWs instead of dropping them entirely.
         nspw = spw_split(spw, nspw, config, mem, crosscal_kwargs['badfreqranges'],
                          kwargs['MS'], includes_partition,
-                         createmms=crosscal_kwargs['createmms'], fields=field_kwargs)
+                         createmms=crosscal_kwargs['createmms'], fields=field_kwargs,
+                         remove=(crosscal_kwargs['badfreq_uvrange'] == ''))
         config_parser.overwrite_config(config, conf_dict={'nspw': nspw}, conf_sec='crosscal')
 
     if not crosscal_kwargs['calcrefant']:

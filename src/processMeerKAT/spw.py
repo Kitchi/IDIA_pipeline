@@ -87,8 +87,11 @@ def spw_split(spw, nspw, config, mem, badfreqranges, MS, partition,
         interval = func((high - low) / float(nspw))
         lo = linspace(low, high - interval, nspw)
         hi = linspace(low + interval, high, nspw)
+        # Round boundaries to whole MHz for clean SPW/directory names. The edge
+        # shift is sub-MHz (<< channel width) and consistent rounding keeps
+        # adjacent SPWs contiguous (hi[i] == lo[i+1]).
         SPWs = [
-            '{0}{1}~{2}{3}'.format(SPW_PREFIX, func(lo[i]), func(hi[i]), unit)
+            '{0}{1}~{2}{3}'.format(SPW_PREFIX, round(lo[i]), round(hi[i]), unit)
             for i in range(len(lo))
         ]
 
@@ -119,7 +122,7 @@ def spw_split(spw, nspw, config, mem, badfreqranges, MS, partition,
                 if low >= bad_low and high <= bad_high:
                     logger.info(
                         "Won't process spw '{0}{1}~{2}{3}', since it's completely "
-                        "encompassed by bad frequency range '{3}'.".format(
+                        "encompassed by bad frequency range '{4}'.".format(
                             SPW_PREFIX, low, high, unit, freq
                         )
                     )
