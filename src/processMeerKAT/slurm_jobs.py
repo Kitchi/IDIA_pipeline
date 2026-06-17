@@ -131,21 +131,16 @@ _PKG_PARENT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def _container_pythonpath():
     """Build the PYTHONPATH string for container invocations.
 
-    Returns a colon-separated list of directories that must be on PYTHONPATH
-    inside the container so processMeerKAT and its pure-Python dependencies
-    (notably tomli for Python < 3.11) are importable. All paths are derived
-    from the host's installed locations — no hardcoding.
+    Returns the single directory that must be on PYTHONPATH inside the
+    container so "python -m processMeerKAT.*" resolves: the package parent.
+
+    Nothing else from the host is added. Dragging the host's site-packages
+    into the container (e.g. to pick up a pure-Python dep) shadows the
+    container's own numpy/scipy/casatasks with ABI-incompatible host builds.
+    Config parsing relies on stdlib ``tomllib`` (Python >= 3.11), so no
+    third-party host package is needed inside the container.
     """
-    paths = [_PKG_PARENT]
-    # tomli is a declared dependency; for editable installs its site-packages
-    # dir differs from _PKG_PARENT (src/), so we locate it explicitly.
-    import importlib.util
-    spec = importlib.util.find_spec('tomli')
-    if spec and spec.origin:
-        tomli_parent = os.path.dirname(os.path.dirname(os.path.abspath(spec.origin)))
-        if tomli_parent not in paths:
-            paths.append(tomli_parent)
-    return ':'.join(paths)
+    return _PKG_PARENT
 
 
 def _resolve_runner(runner, container, pythonpath=''):

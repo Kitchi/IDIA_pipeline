@@ -18,15 +18,7 @@ typed_get(config_dict, section, key, dtype, default=None)
 
 import logging
 
-try:
-    import tomllib
-except ImportError:
-    try:
-        import tomli as tomllib
-    except ImportError:
-        raise ImportError(
-            "Python < 3.11 requires the 'tomli' package: pip install tomli"
-        )
+import tomllib  # stdlib, Python >= 3.11
 
 logger = logging.getLogger(__name__)
 
