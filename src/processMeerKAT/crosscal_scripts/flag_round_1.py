@@ -11,13 +11,13 @@ logfile=casalog.logfile()
 casalog.setlogfile('logs/{SLURM_JOB_NAME}-{SLURM_JOB_ID}.casa'.format(**os.environ))
 import casampi
 
-def do_pre_flag(visname, fields, badfreqranges, badants):
+def do_pre_flag(visname, fields, badfreqranges, badants, badfreq_uvrange=''):
 
     clip = [0., 50.]
 
     if len(badfreqranges):
         badspw = '*:' + ',*:'.join(badfreqranges)
-        flagdata(vis=visname, mode='manual', spw=badspw)
+        flagdata(vis=visname, mode='manual', spw=badspw, uvrange=badfreq_uvrange)
 
     if len(badants):
         badants = ",".join([str(bb) for bb in badants])
@@ -63,8 +63,9 @@ def main(ctx):
 
     badfreqranges = ctx.config['crosscal'].get('badfreqranges', ['935~947MHz', '1160~1310MHz', '1476~1611MHz', '1670~1700MHz'])
     badants = ctx.config['crosscal'].get('badants')
+    badfreq_uvrange = ctx.config['crosscal'].get('badfreq_uvrange', '')
 
-    do_pre_flag(ctx.cal_vis, ctx.fields, badfreqranges, badants)
+    do_pre_flag(ctx.cal_vis, ctx.fields, badfreqranges, badants, badfreq_uvrange)
 
 if __name__ == '__main__':
 

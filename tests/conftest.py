@@ -66,6 +66,7 @@ refant = "m059"
 standard = "Stevens-Reynolds 2016"
 badants = []
 badfreqranges = ["933~960MHz"]
+badfreq_uvrange = ""
 
 [state]
 continue = true
@@ -130,6 +131,7 @@ refant = "m059"
 standard = "Stevens-Reynolds 2016"
 badants = []
 badfreqranges = ["933~960MHz"]
+badfreq_uvrange = ""
 
 [state]
 continue = true
@@ -200,6 +202,7 @@ refant = "m059"
 standard = "Stevens-Reynolds 2016"
 badants = []
 badfreqranges = []
+badfreq_uvrange = ""
 
 [state]
 continue = true

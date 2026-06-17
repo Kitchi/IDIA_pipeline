@@ -30,6 +30,7 @@ FIELDS_CONFIG_KEYS = [
 CROSSCAL_CONFIG_KEYS = [
     'minbaselines', 'chanbin', 'width', 'timeavg', 'createmms', 'keepmms',
     'spw', 'nspw', 'calcrefant', 'refant', 'standard', 'badants', 'badfreqranges',
+    'badfreq_uvrange',
 ]
 SELFCAL_CONFIG_KEYS = [
     'nloops', 'loop', 'cell', 'robust', 'imsize', 'wprojplanes', 'niter',

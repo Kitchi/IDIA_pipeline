@@ -71,6 +71,7 @@ refant = "m059"
 standard = "Stevens-Reynolds 2016"
 badants = []
 badfreqranges = ["933~960MHz", "1163~1299MHz", "1524~1630MHz"]
+badfreq_uvrange = ""             # uv range over which badfreqranges are flagged ("" = all baselines)
 
 [selfcal]
 nloops = 2
@@ -111,7 +112,3 @@ pbband = "LBand"
 mask = ""
 rmsmap = ""
 outlierfile = ""
-
-[state]
-continue = true
-dopol = false
