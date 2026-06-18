@@ -108,7 +108,7 @@ class TestSpwSplit:
                 'badants': [], 'badfreqranges': badfreqranges,
             },
             'slurm': {
-                'nodes': 1, 'ntasks_per_node': 8, 'plane': 1, 'mem': 232,
+                'nodes': 1, 'ntasks_per_node': 8, 'mem': 232,
                 'partition': 'Main', 'exclude': '', 'time': '12:00:00', 'submit': False,
                 'container': '/idia/software/containers/casa-6.5.0-modular.sif',
                 'mpi_wrapper': 'mpirun', 'name': '', 'dependencies': '',

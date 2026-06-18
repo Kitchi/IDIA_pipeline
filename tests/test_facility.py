@@ -245,7 +245,6 @@ class TestValidateArgsUsesFacilityLimits:
             'ntasks_per_node': 8,
             'nodes': 1,
             'mem': 10,
-            'plane': 1,
             'MS': None,
             'nofields': True,
             'build': False,

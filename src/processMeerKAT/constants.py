@@ -48,7 +48,7 @@ SLURM_CONFIG_STR_KEYS = [
     'dependencies', 'exclude', 'account', 'reservation',
 ]
 SLURM_CONFIG_KEYS = [
-    'nodes', 'ntasks_per_node', 'mem', 'plane', 'submit',
+    'nodes', 'ntasks_per_node', 'mem', 'submit',
     'precal_scripts', 'postcal_scripts', 'scripts', 'target_scripts',
     'verbose', 'modules',
 ] + SLURM_CONFIG_STR_KEYS

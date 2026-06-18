@@ -211,7 +211,7 @@ def write_command(script, args, name='job', mpi_wrapper=MPI_WRAPPER,
 
 
 def write_sbatch(script, args, nodes=1, tasks=16, mem=MEM_PER_NODE_GB_LIMIT,
-                 name="job", runname='', plane=1, exclude='',
+                 name="job", runname='', exclude='',
                  mpi_wrapper=MPI_WRAPPER, runner='', container='',
                  partition="Main", time="12:00:00", casa_script=False,
                  SPWs='', nspw=1, account='', reservation='',
@@ -279,7 +279,6 @@ def write_sbatch(script, args, nodes=1, tasks=16, mem=MEM_PER_NODE_GB_LIMIT,
     #SBATCH --cpus-per-task={cpus}
     #SBATCH --mem={mem}GB
     #SBATCH --job-name={runname}{name}
-    #SBATCH --distribution=plane={plane}
     #SBATCH --output={LOG_DIR}/%x-{ID}.out
     #SBATCH --error={LOG_DIR}/%x-{ID}.err
     #SBATCH --partition={partition}
@@ -696,7 +695,7 @@ def write_spw_master(filename, config, SPWs, precal_scripts, postcal_scripts,
 def write_jobs(config, scripts=[], threadsafe=[], containers=[],
                num_precal_scripts=0, mpi_wrapper=MPI_WRAPPER,
                nodes=8, ntasks_per_node=4, mem=MEM_PER_NODE_GB_LIMIT,
-               plane=1, partition='Main', time='12:00:00', submit=False,
+               partition='Main', time='12:00:00', submit=False,
                name='', verbose=False, quiet=False, dependencies='',
                exclude='', account='', reservation='',
                modules=[], timestamp='', justrun=False, default_runner='', target_scripts=None):
@@ -718,7 +717,6 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
             nodes=nodes if ts else 1,
             tasks=ntasks_per_node if ts else 1,
             mem=mem,
-            plane=plane if ts else 1,
             mpi_wrapper=mpi_wrapper if ts else 'srun',
             runner=default_runner, container=containers[i], partition=partition, time=time,
             name=jobname, runname=name,
@@ -741,7 +739,6 @@ def write_jobs(config, scripts=[], threadsafe=[], containers=[],
             nodes=nodes if ts else 1,
             tasks=ntasks_per_node if ts else 1,
             mem=mem,
-            plane=plane if ts else 1,
             mpi_wrapper=mpi_wrapper if ts else 'srun',
             runner=default_runner, container=ctr or '', partition=partition, time=time,
             name=jobname, runname=name,

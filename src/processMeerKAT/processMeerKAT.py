@@ -144,15 +144,6 @@ def validate_args(args, config, parser=None):
                 parser,
             )
 
-    if args['plane'] > args['ntasks_per_node']:
-        raise_error(
-            config,
-            "[-D --plane] cannot be greater than ntasks-per-node ({0}). You input {1}.".format(
-                args['ntasks_per_node'], args['plane']
-            ),
-            parser,
-        )
-
 
 # ---------------------------------------------------------------------------
 # CLI argument parsing
@@ -179,8 +170,6 @@ def parse_args():
                         help="Use this number of nodes [default: 1; max: {0}].".format(_FACILITY.total_nodes_limit))
     parser.add_argument("-t", "--ntasks-per-node", metavar="num", required=False, type=int, default=8,
                         help="Use this number of tasks (per node) [default: 8; max: {0}].".format(_FACILITY.cpus_per_node_limit))
-    parser.add_argument("-D", "--plane", metavar="num", required=False, type=int, default=1,
-                        help="Distribute tasks of this block size before moving onto next node [default: 1].")
     parser.add_argument("-m", "--mem", metavar="num", required=False, type=int,
                         default=None,
                         help="Use this many GB of memory per node [default: facility limit].")

@@ -12,7 +12,6 @@ extrafields = ""
 [slurm]
 nodes = 1
 ntasks_per_node = 8
-plane = 1
 mem = 256
 partition = "normal"
 exclude = ""

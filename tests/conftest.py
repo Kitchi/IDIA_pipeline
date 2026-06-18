@@ -19,7 +19,6 @@ extrafields = ""
 [slurm]
 nodes = 1
 ntasks_per_node = 8
-plane = 1
 mem = 232
 partition = "Main"
 exclude = ""
@@ -90,7 +89,6 @@ extrafields = ""
 [slurm]
 nodes = 1
 ntasks_per_node = 8
-plane = 1
 mem = 232
 partition = "Main"
 exclude = ""
@@ -156,7 +154,6 @@ extrafields = ""
 [slurm]
 nodes = 1
 ntasks_per_node = 2
-plane = 1
 mem = 14
 partition = "debug"
 exclude = ""
