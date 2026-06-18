@@ -9,9 +9,23 @@ from .base import FacilityConfig
 logger = logging.getLogger(__name__)
 
 
+# Environment markers used to propagate a validation result down the per-SPW
+# process tree. With nspw>1 the pipeline re-invokes itself once per SPW via
+# os.system (see slurm_jobs.write_spw_master), and os.system inherits os.environ,
+# so a result recorded by the root run is visible to every descendant. This lets
+# validate_account/validate_reservation short-circuit the slow sacctmgr/scontrol
+# calls after the first, top-level validation — without any CLI flag or plumbing.
+_VALIDATED_ACCOUNT_ENV = 'PROCESSMEERKAT_VALIDATED_ACCOUNT'
+_VALIDATED_RESERVATION_ENV = 'PROCESSMEERKAT_VALIDATED_RESERVATION'
+
+
 def _on_slurm_node():
     hostname = platform.node()
     return any(x in hostname for x in ('slurm-login', 'slwrk', 'compute'))
+
+
+def _account_unset(account):
+    return not account or str(account).lower() == 'none'
 
 
 def _validate_account(account, config, parser=None):
@@ -19,22 +33,34 @@ def _validate_account(account, config, parser=None):
 
     from processMeerKAT import raise_error  # avoid circular import at module level
 
+    def _mark(resolved):
+        """Record a validated account so descendant per-SPW runs can skip sacctmgr."""
+        if resolved:
+            os.environ[_VALIDATED_ACCOUNT_ENV] = resolved
+        return resolved
+
+    # An ancestor run in this process tree already validated. Trust its result if
+    # the requested account is unset or matches what was validated.
+    validated = os.environ.get(_VALIDATED_ACCOUNT_ENV)
+    if validated and (_account_unset(account) or account == validated):
+        return validated
+
     if not _on_slurm_node():
         logger.warning(
             f"Not on a Slurm node. Skipping account validation for '{account}'."
         )
-        return account or ILIFU.default_account
+        return _mark(account or ILIFU.default_account)
 
     if os.environ.get('SLURM_JOB_ID'):
         logger.info(
             f"Running inside Slurm job {os.environ['SLURM_JOB_ID']}. "
             "Skipping account validation."
         )
-        return account
+        return _mark(account)
 
     user = os.environ.get('USER', '')
 
-    if not account or str(account).lower() == 'none':
+    if _account_unset(account):
         default = os.popen(
             f"sacctmgr show user {user} --noheader format=DefaultAccount%30"
         ).read().strip()
@@ -46,7 +72,7 @@ def _validate_account(account, config, parser=None):
                 f"No account specified. Using default '{default}'. "
                 f"All authorized groups: {', '.join(available)}."
             )
-            return default
+            return _mark(default)
         if available:
             logger.warning(
                 f"No default account set for your user. "
@@ -54,7 +80,7 @@ def _validate_account(account, config, parser=None):
                 f"All authorized groups: {', '.join(available)}. "
                 f"Override with -A / --account."
             )
-            return available[0]
+            return _mark(available[0])
         raise_error(config, "No Slurm account found for your user.", parser)
 
     check = os.popen(
@@ -75,7 +101,7 @@ def _validate_account(account, config, parser=None):
         raise_error(config, msg, parser)
 
     logger.info(f"Using Slurm account '{account}'")
-    return account
+    return _mark(account)
 
 
 def _validate_reservation(reservation, args, config, parser=None):
@@ -84,6 +110,10 @@ def _validate_reservation(reservation, args, config, parser=None):
     from processMeerKAT import raise_error
 
     if not reservation:
+        return
+
+    # Already validated by an ancestor run in this process tree.
+    if os.environ.get(_VALIDATED_RESERVATION_ENV) == reservation:
         return
 
     if not _on_slurm_node():
@@ -109,6 +139,8 @@ def _validate_reservation(reservation, args, config, parser=None):
         else:
             msg += f' Active reservations: {reservations}.'
         raise_error(config, msg, parser)
+
+    os.environ[_VALIDATED_RESERVATION_ENV] = reservation
 
 
 ILIFU = FacilityConfig(

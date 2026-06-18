@@ -6,6 +6,9 @@ build/
 dist/
 .aider*
 
+# CASA log files
+casalog-*.log
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db

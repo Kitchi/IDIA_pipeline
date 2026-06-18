@@ -186,9 +186,13 @@ def format_args(config, submit, quiet, dependencies, justrun):
     kwargs['MS'] = data_kwargs['vis']
     validate_args(kwargs, config)
 
-    # Facility validation runs only at -R time (requires SLURM node + sacctmgr/scontrol)
+    # Facility validation runs only at -R time (requires SLURM node + sacctmgr/scontrol).
+    # validate_account self-memoizes across the per-SPW process tree (see the facility
+    # layer), so this is effectively a no-op after the first, top-level call.
     kwargs['account'] = _FACILITY.validate_account(kwargs.get('account'), config)
     _FACILITY.validate_reservation(kwargs.get('reservation', ''), kwargs, config)
+    # Persist the resolved account so per-SPW children inherit a concrete account.
+    config_parser.overwrite_config(config, conf_dict={'account': kwargs['account']}, conf_sec='slurm')
 
     kwargs['scripts'] = [check_path(i['script']) for i in scripts]
     kwargs['threadsafe'] = [i['mpi'] for i in scripts]
