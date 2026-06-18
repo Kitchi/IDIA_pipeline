@@ -92,7 +92,7 @@ def main(ctx):
         npol = 2
     CPUs = npol if tasks*npol <= processMeerKAT.CPUS_PER_NODE_LIMIT else 1 #hard-code for number of polarisations
 
-    cal_fields = cal_field_selection(taskvals.get('fields', {}))
+    cal_fields = cal_field_selection(ctx.config.get('fields', {}))
     if not cal_fields:
         raise ValueError("No calibrator fields found in [fields] section of config — partition.py needs at least one of bpassfield/fluxfield/phasecalfield to run.")
 

@@ -66,7 +66,7 @@ def main(ctx):
 
     casalog.setlogfile('logs/{SLURM_JOB_NAME}-{SLURM_JOB_ID}.casa'.format(**os.environ))
 
-    target_field = target_field_selection(taskvals.get('fields', {}))
+    target_field = target_field_selection(ctx.config.get('fields', {}))
 
     msmd.open(visname)
     target_vis = do_partition_target(visname, target_field, preavg, include_crosshand, createmms)
