@@ -5,6 +5,7 @@
 Calculates the reference antenna
 """
 from .. import bookkeeping
+from .. import config_parser
 from ..config_parser import typed_get
 
 import os

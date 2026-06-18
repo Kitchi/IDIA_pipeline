@@ -14,6 +14,7 @@ import sys
 import os
 
 from .. import processMeerKAT
+from .. import config_parser
 from ..config_parser import typed_get
 from .. import bookkeeping
 from .partition import _strip_quotes

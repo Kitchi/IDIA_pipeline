@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .. import bookkeeping
+from .. import config_parser
 from ..config_parser import typed_get
 import glob
 PLOT_DIR = 'plots'

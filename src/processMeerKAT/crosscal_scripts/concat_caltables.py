@@ -19,6 +19,7 @@ import os
 import sys
 
 from .. import bookkeeping
+from .. import config_parser
 from ..config_parser import typed_get
 from .. import processMeerKAT
 

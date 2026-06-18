@@ -7,6 +7,7 @@ import glob
 from shutil import copytree
 
 from .. import bookkeeping
+from .. import config_parser
 from ..config_parser import typed_get
 
 from casatasks import *
