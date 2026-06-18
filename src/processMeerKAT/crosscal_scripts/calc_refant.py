@@ -96,19 +96,19 @@ def main(ctx):
 
         refant, badants = get_ref_ant(visname, field)
         # Overwrite config file with new refant
-        config_parser.overwrite_config(args['config'], conf_sec='crosscal', conf_dict={'refant': refant})
-        config_parser.overwrite_config(args['config'], conf_sec='crosscal', conf_dict={'badants' : badants})
+        config_parser.overwrite_config(ctx.config_path, conf_sec='crosscal', conf_dict={'refant': refant})
+        config_parser.overwrite_config(ctx.config_path, conf_sec='crosscal', conf_dict={'badants' : badants})
 
         #Replace reference antenna in each SPW config
         if nspw > 1:
             for SPW in spw.split(','):
-                spw_config = '{0}/{1}'.format(SPW.replace('*:',''),args['config'])
+                spw_config = '{0}/{1}'.format(SPW.replace('*:',''),ctx.config_path)
                 # Overwrite config file with new refant
                 config_parser.overwrite_config(spw_config, conf_sec='crosscal', conf_dict={'refant': refant})
                 config_parser.overwrite_config(spw_config, conf_sec='crosscal', conf_dict={'badants' : badants})
                 config_parser.overwrite_config(spw_config, conf_sec='crosscal', conf_dict={'calcrefant' : False})
     else:
-        logger.info("Skipping calculation of reference antenna, as 'calcrefant=False' in '{0}'.".format(args['config']))
+        logger.info("Skipping calculation of reference antenna, as 'calcrefant=False' in '{0}'.".format(ctx.config_path))
 
 if __name__ == '__main__':
 

@@ -273,7 +273,7 @@ def main(ctx):
         msmd.open(visname)
 
         caldir = 'caltables'
-        spwdir = config_parser.parse_spw(args['config'])[3]
+        spwdir = config_parser.parse_spw(ctx.config_path)[3]
 
         if type(spwdir) is str:
             spwdir = glob.glob(spwdir)

@@ -81,7 +81,7 @@ def main(ctx):
         casalog.setlogfile('logs/{SLURM_JOB_NAME}-{SLURM_JOB_ID}.casa'.format(**os.environ))
 
     if ',' in spw:
-        low,high,unit,dirs = config_parser.parse_spw(args['config'])
+        low,high,unit,dirs = config_parser.parse_spw(ctx.config_path)
         spwname = '{0:.0f}~{1:.0f}MHz'.format(min(low),max(high))
     else:
         spwname = spw.replace('*:','')
@@ -98,8 +98,8 @@ def main(ctx):
         raise ValueError("No calibrator fields found in [fields] section of config — partition.py needs at least one of bpassfield/fluxfield/phasecalfield to run.")
 
     mvis = do_partition(visname, spw, preavg, CPUs, include_crosshand, createmms, spwname, field=cal_fields)
-    config_parser.overwrite_config(args['config'], conf_sec='data', conf_dict={'vis': mvis})
-    config_parser.overwrite_config(args['config'], conf_sec='state', conf_dict={'orig_vis': visname})
+    config_parser.overwrite_config(ctx.config_path, conf_sec='data', conf_dict={'vis': mvis})
+    config_parser.overwrite_config(ctx.config_path, conf_sec='state', conf_dict={'orig_vis': visname})
     msmd.done()
 
 if __name__ == '__main__':

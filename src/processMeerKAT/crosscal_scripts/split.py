@@ -57,8 +57,8 @@ def main(ctx):
     msmd.open(visname)
     newvis = split_vis(visname, spw, fields, specavg, timeavg, keepmms, badants)
 
-    config_parser.overwrite_config(args['config'], conf_dict={'vis': newvis}, conf_sec='data')
-    config_parser.overwrite_config(args['config'], conf_dict={'crosscal_vis': visname}, conf_sec='state')
+    config_parser.overwrite_config(ctx.config_path, conf_dict={'vis': newvis}, conf_sec='data')
+    config_parser.overwrite_config(ctx.config_path, conf_dict={'crosscal_vis': visname}, conf_sec='state')
     msmd.done()
 
 if __name__ == '__main__':

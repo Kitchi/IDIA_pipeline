@@ -74,7 +74,7 @@ def main(ctx):
     msmd.done()
 
     config_parser.overwrite_config(
-        args['config'],
+        ctx.config_path,
         conf_sec='state',
         conf_dict={'target_vis': target_vis},
     )
@@ -83,7 +83,7 @@ def main(ctx):
     # We copy the main config and override [data].vis so target scripts run
     # against the target MMS rather than the cal MMS.
     import shutil
-    main_cfg = args['config']
+    main_cfg = ctx.config_path
     target_cfg = os.path.join(os.path.dirname(main_cfg) or '.', 'target_config.toml')
     shutil.copyfile(main_cfg, target_cfg)
     config_parser.overwrite_config(
