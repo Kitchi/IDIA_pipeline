@@ -7,7 +7,7 @@ import shutil
 
 from .. import bookkeeping
 from ..config_parser import typed_get
-from casarecipes.almapolhelpers import xyamb
+from ..xyamb import xyamb
 import numpy as np
 
 from casatasks import *
