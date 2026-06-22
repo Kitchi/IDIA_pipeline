@@ -57,20 +57,33 @@ SLURM_CONFIG_KEYS = [
 # Each entry is a dict with keys: script (str), mpi (bool), and optionally
 # container (str) to override the global slurm.container for that step.
 #
-# DAG (multi-SPW): precal_scripts run once at top level. Two parallel branches
-# follow: per-SPW calibrator solve chains run `scripts`; a single monolithic
-# target MMS runs `target_scripts`. postcal_scripts run after both branches
-# join, joining the per-SPW caltables and applying them to the target.
+# DAG (multi-SPW): precal_scripts run once at top level (just the calibrator
+# partition). Each per-SPW directory then runs a single linear chain: the
+# calibrator solve `scripts`, followed by the target sub-chain
+# (TARGET_SUBCHAIN) — split that SPW's target, flag it, and apply that SPW's
+# own caltables to it. Because every SPW directory works on independent MSes,
+# all 11 applies run in parallel with no shared-column contention, and a
+# missing fluxscale fails only that SPW's job. postcal_scripts then run once at
+# top level, concatenating the corrected per-SPW targets along frequency before
+# selfcal / imaging.
 PRECAL_SCRIPTS = [
     {'script': 'partition.py', 'mpi': True},
-    {'script': 'partition_target.py', 'mpi': True},
 ]
 POSTCAL_SCRIPTS = [
-    {'script': 'concat_caltables.py', 'mpi': False},
-    {'script': 'apply_to_target.py', 'mpi': True},
+    {'script': 'concat_target.py', 'mpi': False},
     {'script': 'selfcal_part1.py', 'mpi': True},
     {'script': 'selfcal_part2.py', 'mpi': False},
     {'script': 'science_image.py', 'mpi': True},
+]
+# Per-SPW target sub-chain, injected into each per-SPW directory's
+# postcal_scripts by spw.spw_split. partition_target splits this SPW's target
+# (and switches [data].vis to it), the flag steps clean it, and apply_to_target
+# applies this SPW's caltables. Runs after the calibrator solve `scripts`.
+TARGET_SUBCHAIN = [
+    {'script': 'partition_target.py', 'mpi': True},
+    {'script': 'validate_input.py', 'mpi': False},
+    {'script': 'flag_round_1.py', 'mpi': True},
+    {'script': 'apply_to_target.py', 'mpi': True},
 ]
 SCRIPTS = [
     {'script': 'validate_input.py', 'mpi': False},
@@ -82,10 +95,10 @@ SCRIPTS = [
     {'script': 'xx_yy_solve.py', 'mpi': False},
     {'script': 'xx_yy_apply.py', 'mpi': True},
 ]
-TARGET_SCRIPTS = [
-    {'script': 'validate_input.py', 'mpi': False},
-    {'script': 'flag_round_1.py', 'mpi': True},
-]
+# The old top-level monolithic target branch is retired: target flagging now
+# runs per-SPW as part of TARGET_SUBCHAIN inside each SPW directory. Kept as an
+# empty list so callers that still pass target_scripts get a no-op branch.
+TARGET_SCRIPTS = []
 
 # Facility-specific defaults (these match IlifuFacility; overridden at runtime)
 # Kept here only so legacy code that imports directly still works.

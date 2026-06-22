@@ -6,7 +6,7 @@ import logging
 from shutil import copyfile
 
 from . import config_parser
-from .constants import SPW_PREFIX
+from .constants import SPW_PREFIX, TARGET_SUBCHAIN
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +157,11 @@ def spw_split(spw, nspw, config, mem, badfreqranges, MS, partition,
         config_parser.overwrite_config(spw_config, conf_dict={'mem': mem}, conf_sec='slurm')
         config_parser.overwrite_config(spw_config, conf_dict={'calcrefant': False}, conf_sec='crosscal')
         config_parser.overwrite_config(spw_config, conf_dict={'precal_scripts': []}, conf_sec='slurm')
-        config_parser.overwrite_config(spw_config, conf_dict={'postcal_scripts': []}, conf_sec='slurm')
+        # Per-SPW target sub-chain runs as this directory's postcal: since the
+        # per-SPW pipeline is nspw=1, pipeline.format_args appends postcal_scripts
+        # after the calibrator `scripts`, giving one linear chain of
+        # cal-solve → split target → flag target → apply caltables.
+        config_parser.overwrite_config(spw_config, conf_dict={'postcal_scripts': TARGET_SUBCHAIN}, conf_sec='slurm')
 
         # Look 1 directory up when using relative path
         if MS[0] != '/':

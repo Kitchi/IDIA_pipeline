@@ -1,5 +1,13 @@
-"""Tests for apply_to_target.main — mocks CASA applycal."""
+"""Tests for apply_to_target.main — per-SPW local apply, mocks CASA applycal.
 
+apply_to_target now runs inside a per-SPW directory: it applies that SPW's own
+caltables (under ``caltables/``, derived from the calibrator MMS name in
+[state].cal_vis) to that SPW's target MMS ([state].target_vis). The fluxscale
+table is mandatory — a missing one raises rather than silently applying raw
+gains.
+"""
+
+import os
 from unittest.mock import patch
 
 import pytest
@@ -8,10 +16,9 @@ from processMeerKAT.crosscal_scripts import apply_to_target as apt
 from processMeerKAT.bookkeeping import ScriptContext, get_field_ids, get_calfiles
 
 
-def _taskvals(target_vis='target.mms', combined_kcorr='cal/foo.kcal',
-              combined_bpass='cal/foo.bcal', combined_flux='cal/foo.fluxscale'):
+def _taskvals(target_vis='target.mms', cal_vis='foo.mms'):
     return {
-        'data': {'vis': "'foo.ms'"},
+        'data': {'vis': "'{0}'".format(cal_vis)},
         'fields': {
             'targetfields': "'NGC1234'",
             'fluxfield': "'0'",
@@ -20,16 +27,14 @@ def _taskvals(target_vis='target.mms', combined_kcorr='cal/foo.kcal',
             'extrafields': "''",
         },
         'state': {
+            'cal_vis': "'{0}'".format(cal_vis),
             'target_vis': "'{0}'".format(target_vis) if target_vis else '',
-            'combined_kcorr': "'{0}'".format(combined_kcorr) if combined_kcorr else '',
-            'combined_bpass': "'{0}'".format(combined_bpass) if combined_bpass else '',
-            'combined_flux': "'{0}'".format(combined_flux) if combined_flux else '',
+            'dopol': False,
         },
     }
 
 
 def _build_context(config_dict):
-    """Build a ScriptContext from a test config dict."""
     vis = config_dict['data']['vis'].strip("'")
     caldir = 'caltables'
     fields = get_field_ids(config_dict['fields'])
@@ -46,25 +51,39 @@ def _build_context(config_dict):
     )
 
 
-def test_apply_to_target_calls_applycal_with_combined_tables(tmp_path, monkeypatch):
+def _make_caltables(tmp_path, base='foo', exts=('kcal', 'bcal', 'fluxscale')):
+    """Create empty caltable directories under caltables/ for the given base."""
+    caldir = tmp_path / 'caltables'
+    caldir.mkdir(exist_ok=True)
+    for ext in exts:
+        (caldir / '{0}.{1}'.format(base, ext)).mkdir()
+
+
+def _common_setup(monkeypatch, tmp_path):
     monkeypatch.setenv('SLURM_JOB_NAME', 'test')
     monkeypatch.setenv('SLURM_JOB_ID', '0')
     (tmp_path / 'logs').mkdir()
     monkeypatch.chdir(tmp_path)
+    (tmp_path / 'target.mms').mkdir()  # target must exist
+
+
+def test_apply_to_target_calls_applycal_with_local_tables(tmp_path, monkeypatch):
+    _common_setup(monkeypatch, tmp_path)
+    _make_caltables(tmp_path)  # kcal + bcal + fluxscale
 
     captured = {}
-
-    def fake_applycal(**kwargs):
-        captured.update(kwargs)
-
-    with patch.object(apt, 'applycal', side_effect=fake_applycal), \
+    with patch.object(apt, 'applycal', side_effect=lambda **kw: captured.update(kw)), \
          patch.object(apt, 'casalog'):
-        ctx = _build_context(_taskvals())
-        apt.main(ctx)
+        apt.main(_build_context(_taskvals()))
 
+    cal = str(tmp_path / 'caltables')
     assert captured['vis'] == 'target.mms'
     assert captured['field'] == 'NGC1234'
-    assert captured['gaintable'] == ['cal/foo.kcal', 'cal/foo.bcal', 'cal/foo.fluxscale']
+    assert captured['gaintable'] == [
+        os.path.join(cal, 'foo.kcal'),
+        os.path.join(cal, 'foo.bcal'),
+        os.path.join(cal, 'foo.fluxscale'),
+    ]
     assert captured['gainfield'] == ['1', '0', '0']  # kcorr=phasecal, bpass=0, flux=0
     assert captured['parang'] is False
     assert captured['calwt'] is False
@@ -72,41 +91,37 @@ def test_apply_to_target_calls_applycal_with_combined_tables(tmp_path, monkeypat
 
 
 def test_apply_to_target_raises_when_target_vis_missing(monkeypatch, tmp_path):
-    monkeypatch.setenv('SLURM_JOB_NAME', 'test')
-    monkeypatch.setenv('SLURM_JOB_ID', '0')
-    (tmp_path / 'logs').mkdir()
-    monkeypatch.chdir(tmp_path)
+    _common_setup(monkeypatch, tmp_path)
+    _make_caltables(tmp_path)
 
     with patch.object(apt, 'applycal'), patch.object(apt, 'casalog'):
         with pytest.raises(RuntimeError, match='target_vis'):
-            ctx = _build_context(_taskvals(target_vis=''))
-            apt.main(ctx)
+            apt.main(_build_context(_taskvals(target_vis='')))
 
 
-def test_apply_to_target_raises_when_no_caltables(monkeypatch, tmp_path):
-    monkeypatch.setenv('SLURM_JOB_NAME', 'test')
-    monkeypatch.setenv('SLURM_JOB_ID', '0')
-    (tmp_path / 'logs').mkdir()
-    monkeypatch.chdir(tmp_path)
+def test_apply_to_target_raises_when_fluxscale_missing(monkeypatch, tmp_path):
+    """Missing fluxscale must fail loudly — no silent gcal fallback."""
+    _common_setup(monkeypatch, tmp_path)
+    _make_caltables(tmp_path, exts=('kcal', 'bcal', 'gcal'))  # no fluxscale
 
     with patch.object(apt, 'applycal'), patch.object(apt, 'casalog'):
-        with pytest.raises(RuntimeError, match='no combined caltables'):
-            ctx = _build_context(_taskvals(combined_kcorr='', combined_bpass='', combined_flux=''))
-            apt.main(ctx)
+        with pytest.raises(RuntimeError, match='fluxscale'):
+            apt.main(_build_context(_taskvals()))
 
 
 def test_apply_to_target_skips_missing_caltable_types(monkeypatch, tmp_path):
-    """If only bpass+flux exist (no kcorr), applycal is still invoked with what's available."""
-    monkeypatch.setenv('SLURM_JOB_NAME', 'test')
-    monkeypatch.setenv('SLURM_JOB_ID', '0')
-    (tmp_path / 'logs').mkdir()
-    monkeypatch.chdir(tmp_path)
+    """If only bpass+fluxscale exist (no kcorr), applycal is still invoked."""
+    _common_setup(monkeypatch, tmp_path)
+    _make_caltables(tmp_path, exts=('bcal', 'fluxscale'))
 
     captured = {}
     with patch.object(apt, 'applycal', side_effect=lambda **kw: captured.update(kw)), \
          patch.object(apt, 'casalog'):
-        ctx = _build_context(_taskvals(combined_kcorr=''))
-        apt.main(ctx)
+        apt.main(_build_context(_taskvals()))
 
-    assert captured['gaintable'] == ['cal/foo.bcal', 'cal/foo.fluxscale']
+    cal = str(tmp_path / 'caltables')
+    assert captured['gaintable'] == [
+        os.path.join(cal, 'foo.bcal'),
+        os.path.join(cal, 'foo.fluxscale'),
+    ]
     assert captured['gainfield'] == ['0', '0']

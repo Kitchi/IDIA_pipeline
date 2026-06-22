@@ -75,9 +75,9 @@ def bookkeeping(visname):
 def get_all_spw_caldirs(top_dir, config_name='default_config.toml'):
     """Discover the per-SPW caldirs sitting under a top-level run directory.
 
-    Used by postcal scripts (concat_caltables, apply_to_target) to find every
-    per-SPW pipeline subdir, read its global SPW ID from its config, and
-    locate its ``caltables/`` directory.
+    Used by the top-level concat_target postcal step to find every per-SPW
+    pipeline subdir, read its global SPW ID from its config, and locate its
+    ``caltables/`` directory (and, via the same config, its corrected target).
 
     Parameters
     ----------
@@ -97,6 +97,19 @@ def get_all_spw_caldirs(top_dir, config_name='default_config.toml'):
     """
     from . import config_parser as _cp
 
+    # Build a map from normalised SPW label (e.g. '856~934MHz') to its global
+    # index, using the ordered, comma-separated SPW list in the top-level
+    # config. Per-SPW configs store their SPW with the '*:' prefix (or a
+    # numeric '<id>:' prefix from auto_detect_spw), which on its own carries no
+    # reliable global index — the index is the position in this ordered list.
+    label_to_id = {}
+    top_config = os.path.join(top_dir, config_name)
+    if os.path.isfile(top_config):
+        top_spw = _cp.get_key(top_config, 'crosscal', 'spw')
+        if isinstance(top_spw, str):
+            for idx, part in enumerate(top_spw.split(',')):
+                label_to_id[_normalise_spw_label(part)] = idx
+
     entries = []
     for name in sorted(os.listdir(top_dir)):
         spw_dir = os.path.join(top_dir, name)
@@ -106,7 +119,11 @@ def get_all_spw_caldirs(top_dir, config_name='default_config.toml'):
         spw_string = _cp.get_key(spw_config, 'crosscal', 'spw')
         if not isinstance(spw_string, str):
             continue
-        spw_id = _parse_global_spw_id(spw_string)
+        # Prefer the position in the top-level ordered SPW list; fall back to a
+        # numeric '<id>:' prefix if the per-SPW string carries one.
+        spw_id = label_to_id.get(_normalise_spw_label(spw_string))
+        if spw_id is None:
+            spw_id = _parse_global_spw_id(spw_string)
         if spw_id is None:
             continue
         entries.append({
@@ -118,6 +135,18 @@ def get_all_spw_caldirs(top_dir, config_name='default_config.toml'):
 
     entries.sort(key=lambda e: e['spw_id'])
     return entries
+
+
+def _normalise_spw_label(spw_string):
+    """Strip any leading '<id>:' or '*:' selector and whitespace/quotes.
+
+    Reduces an SPW selection like ``'*:856~934MHz'`` or ``'0:856~934MHz'`` to
+    its bare frequency-range label ``'856~934MHz'`` so per-SPW configs can be
+    matched against the top-level ordered SPW list (which assigns the global
+    index). This mirrors the directory-naming logic in ``spw.spw_split``.
+    """
+    label = spw_string.strip().strip("'\"")
+    return re.sub(r'^(\*|\d+):', '', label)
 
 
 def _parse_global_spw_id(spw_string):

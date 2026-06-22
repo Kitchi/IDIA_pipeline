@@ -2,13 +2,18 @@
 #See processMeerKAT.py for license details.
 
 """
-Split the target field(s) out of the input MS into a single monolithic MMS
-spanning all SPWs.
+Split the target field(s) out of the input MS into a per-SPW target MMS.
 
-Runs once at top level (no SPW job-array) so the target flag chain can proceed
-in parallel with the per-SPW calibrator solve chains. The MMS layout
-(``createmms=True``, ``numsubms`` capped) lets downstream ``flagdata`` and
-``applycal`` exploit MPI parallelism.
+Runs *inside each per-SPW directory* (as a job array, mirroring partition.py),
+splitting the target field of the original input MS down to this directory's
+single spectral-window frequency range. The resulting per-SPW target carries a
+single SPW (id 0), aligned to that directory's calibrator caltables, so
+``apply_to_target.py`` can index-match caltable SPW 0 → target SPW 0.
+
+Each SPW directory therefore ends up with its own calibrator MMS (from
+partition.py) *and* its own target MMS, letting the target flag + apply chain
+run per-SPW in parallel. The corrected per-SPW targets are recombined along
+frequency at the top level afterwards.
 """
 import sys
 import os
@@ -37,19 +42,19 @@ def target_field_selection(fields_section):
     return str(raw)
 
 
-def do_partition_target(visname, target_field, preavg, include_crosshand, createmms):
+def do_partition_target(visname, target_field, spw, preavg, include_crosshand, createmms, spwname):
     basename, ext = os.path.splitext(visname)
     filebase = os.path.split(basename)[1]
     extn = 'mms' if createmms else 'ms'
 
-    target_vis = '{0}.target.{1}'.format(filebase, extn)
+    target_vis = '{0}.{1}.target.{2}'.format(filebase, spwname, extn)
     nscan = msmd.nscans() if createmms else 1
     numsubms = min(nscan, MAX_TARGET_NUMSUBMS) if createmms else 1
     chanaverage = preavg > 1
     correlation = '' if include_crosshand else 'XX,YY'
 
     mstransform(
-        vis=visname, outputvis=target_vis, field=target_field, spw='',
+        vis=visname, outputvis=target_vis, field=target_field, spw=spw,
         createmms=createmms, datacolumn='DATA',
         chanaverage=chanaverage, chanbin=preavg,
         numsubms=numsubms, separationaxis='scan',
@@ -60,34 +65,48 @@ def do_partition_target(visname, target_field, preavg, include_crosshand, create
 
 
 def main(ctx):
-    visname = typed_get(ctx.config, 'data', 'vis', str)
+    # By the time this runs (per-SPW postcal sub-chain), partition.py has set
+    # [data].vis to the calibrator-only MMS and stamped the original input MS
+    # into [state].orig_vis. We split the target from the original MS, then
+    # switch [data].vis to the new per-SPW target so the subsequent flag steps
+    # operate on the target. The calibrator MMS name is preserved in
+    # [state].cal_vis so apply_to_target can still locate the caltables.
+    cal_vis = typed_get(ctx.config, 'state', 'cal_vis', str, default='') \
+        or typed_get(ctx.config, 'data', 'vis', str)
+    orig_vis = typed_get(ctx.config, 'state', 'orig_vis', str, default='')
+    visname = orig_vis or cal_vis
+
+    spw = typed_get(ctx.config, 'crosscal', 'spw', str, default='')
     preavg = typed_get(ctx.config, 'crosscal', 'chanbin', int, default=1)
     include_crosshand = typed_get(ctx.config, 'state', 'dopol', bool, default=False)
     createmms = typed_get(ctx.config, 'crosscal', 'createmms', bool, default=True)
+
+    if ',' in spw:
+        raise RuntimeError(
+            "partition_target.py expects a single per-SPW selection in [crosscal].spw, "
+            "got a multi-SPW list '{0}'. It must run inside a per-SPW directory.".format(spw)
+        )
+    spwname = spw.replace('*:', '')
 
     casalog.setlogfile('logs/{SLURM_JOB_NAME}-{SLURM_JOB_ID}.casa'.format(**os.environ))
 
     target_field = target_field_selection(ctx.config.get('fields', {}))
 
     msmd.open(visname)
-    target_vis = do_partition_target(visname, target_field, preavg, include_crosshand, createmms)
+    target_vis = do_partition_target(
+        visname, target_field, spw, preavg, include_crosshand, createmms, spwname
+    )
     msmd.done()
 
+    # Preserve the calibrator MMS name for apply_to_target, record the target,
+    # and switch [data].vis to the target so the flag steps run against it.
     config_parser.overwrite_config(
         ctx.config_path,
         conf_sec='state',
-        conf_dict={'target_vis': target_vis},
+        conf_dict={'cal_vis': cal_vis, 'target_vis': target_vis},
     )
-
-    # Also stamp out a sibling config file used by the target branch sbatches.
-    # We copy the main config and override [data].vis so target scripts run
-    # against the target MMS rather than the cal MMS.
-    import shutil
-    main_cfg = ctx.config_path
-    target_cfg = os.path.join(os.path.dirname(main_cfg) or '.', 'target_config.toml')
-    shutil.copyfile(main_cfg, target_cfg)
     config_parser.overwrite_config(
-        target_cfg,
+        ctx.config_path,
         conf_sec='data',
         conf_dict={'vis': target_vis},
     )
